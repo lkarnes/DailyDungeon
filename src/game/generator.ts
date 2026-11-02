@@ -17,7 +17,7 @@ import {
 } from './grid';
 import { generateClues } from './clues';
 
-const MAX_ATTEMPTS = 300;
+const MAX_ATTEMPTS = 800;
 
 /** BFS over floor tiles reachable from `origin`, treating every tile in `blocked` as impassable. */
 function regionFrom(terrain: TileTerrain[][], origin: Position, blocked: Set<string>): Set<string> {
