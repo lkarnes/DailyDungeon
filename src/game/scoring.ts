@@ -124,10 +124,14 @@ function buildTrailGrid(summary: RunSummary): string {
 }
 
 /** Builds a Wordle-style shareable text block (no spoilers, no map details). */
-export function buildShareText(summary: RunSummary, epoch: number, difficultyLabel: string): string {
+export function buildShareText(summary: RunSummary, epoch: number, difficultyLabel: string, isPractice = false): string {
   const badge = getScoreBadge(summary);
   const lines: string[] = [];
-  lines.push(`${badge.emoji} Daily Dungeon #${epoch} (${difficultyLabel}) - ${badge.label}`);
+  lines.push(
+    isPractice
+      ? `${badge.emoji} Daily Dungeon PRACTICE 🛠️ (${difficultyLabel}) - ${badge.label}`
+      : `${badge.emoji} Daily Dungeon #${epoch} (${difficultyLabel}) - ${badge.label}`,
+  );
   lines.push(buildTrailGrid(summary));
   if (summary.trapTriggered) {
     lines.push(`💀 Caught in a trap after ${summary.movesUsed} moves.`);

@@ -170,6 +170,7 @@ export default function App() {
           stats={stats}
           onPractice={startPractice}
           onClose={() => setPracticeDismissed(true)}
+          isPractice
         />
       )}
     </div>

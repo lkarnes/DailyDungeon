@@ -22,15 +22,16 @@ interface ResultsModalProps {
   onPractice: () => void;
   onClose?: () => void;
   alreadyPlayed?: boolean;
+  isPractice?: boolean;
 }
 
-export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractice, onClose, alreadyPlayed }: ResultsModalProps) {
+export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractice, onClose, alreadyPlayed, isPractice }: ResultsModalProps) {
   const [copied, setCopied] = useState(false);
   const diff = summary.movesUsed - summary.optimalMoves;
   const badge = getScoreBadge(summary);
 
   async function handleShare() {
-    const text = buildShareText(summary, epoch, difficultyLabel);
+    const text = buildShareText(summary, epoch, difficultyLabel, isPractice);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -41,7 +42,7 @@ export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractic
   }
 
   return (
-    <Modal title={summary.trapTriggered ? 'You were caught!' : 'Daily escape complete'} onClose={onClose}>
+    <Modal title={isPractice ? (summary.trapTriggered ? 'You were caught! (Practice)' : 'Practice escape complete') : summary.trapTriggered ? 'You were caught!' : 'Daily escape complete'} onClose={onClose}>
       <div className="results">
         {alreadyPlayed && <p className="results__already-played">You already played Daily Dungeon #{epoch} today. Here&rsquo;s how you did:</p>}
         <div className="results__badge" title={badge.label} aria-hidden="true">
