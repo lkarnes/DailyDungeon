@@ -1,4 +1,10 @@
-/** Renders the dungeon grid: terrain, player, items, clue markers, flags, and (post-game) revealed traps. */
+/**
+ * Renders the dungeon grid: terrain, player, items, flags, and (post-game) revealed
+ * traps. Clue markers are fog-of-war'd - only shown on the tile the player is
+ * currently standing on, never on unvisited or already-left tiles (see the Clue
+ * Log for history). Permanently blocked "boulder" tiles are visually distinct from
+ * both plain cave walls and switch-clearable rubble gates.
+ */
 import type { DungeonMap, Position } from '../game/types';
 import { posKey } from '../game/types';
 import type { GameState } from '../hooks/useGameState';
@@ -16,6 +22,9 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
   const exitKey = posKey(map.exit);
   const keyKey = map.key ? posKey(map.key) : null;
   const doorKey = map.door ? posKey(map.door) : null;
+  const blockedTileGate = new Map(map.gates.map((g, i) => [posKey(g.blockedPos), i]));
+  const switchTileGate = new Map(map.gates.map((g, i) => [posKey(g.switchPos), i]));
+  const permanentBlockKeys = new Set(map.permanentBlocks.map(posKey));
   const collectibleKeys = new Set(map.collectibles.map(posKey));
   const cluesByTile = new Map<string, typeof map.clues>();
   for (const clue of map.clues) {
@@ -35,6 +44,7 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
         row.map((terrain, c) => {
           const pos = { row: r, col: c };
           const k = posKey(pos);
+          const isPermanentBlock = permanentBlockKeys.has(k);
           const isWall = terrain === 'wall';
           const isPlayer = k === playerKey;
           const isStart = k === startKey;
@@ -45,28 +55,40 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
           const scannedSafe = state.scannedSafe.has(k);
           const scannedTrap = state.scannedTrap.has(k);
           const cluesHere = cluesByTile.get(k) ?? [];
-          const anyUndiscovered = cluesHere.some((c) => !state.discoveredClueIds.has(c.id));
-          const allDiscovered = cluesHere.length > 0 && !anyUndiscovered;
+          // Fog of war: clue markers are only ever shown on the tile the player is
+          // *currently* standing on - never on unvisited tiles (that would let you
+          // see every clue location and trace a path without exploring) and not on
+          // tiles you've already walked away from (that info lives in the Clue Log).
+          const showClueHere = isPlayer && cluesHere.length > 0;
           const hasKeyItem = keyKey === k && !state.hasKey;
           const isDoorTile = doorKey === k;
+          const gateIdxForBlocked = blockedTileGate.get(k);
+          const isBlockedTile = gateIdxForBlocked !== undefined && !state.activatedGates.has(gateIdxForBlocked);
+          const gateIdxForSwitch = switchTileGate.get(k);
+          const isActivatedSwitch = gateIdxForSwitch !== undefined && state.activatedGates.has(gateIdxForSwitch);
           const hasCollectible = collectibleKeys.has(k) && !state.collectedCollectibles.has(k);
 
           const classes = [
             'tile',
             isWall ? 'tile--wall' : 'tile--floor',
+            isPermanentBlock ? 'tile--boulder' : '',
             isVisited ? 'tile--visited' : '',
             isFlagged ? 'tile--flagged' : '',
             scanMode && !isWall && !isVisited ? 'tile--scannable' : '',
             isTrapRevealed ? 'tile--trap-revealed' : '',
             scannedSafe ? 'tile--scanned-safe' : '',
             scannedTrap ? 'tile--scanned-trap' : '',
+            isBlockedTile ? 'tile--blocked' : '',
           ]
             .filter(Boolean)
             .join(' ');
 
           let icon: string | null = null;
           let title = '';
-          if (!isWall) {
+          if (isPermanentBlock) {
+            icon = '⛔';
+            title = 'Impassable rubble';
+          } else if (!isWall) {
             if (isTrapRevealed) {
               icon = '💀';
               title = 'Trap';
@@ -76,18 +98,21 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
             } else if (isDoorTile && !state.hasKey) {
               icon = '🔒';
               title = 'Locked door';
+            } else if (isBlockedTile) {
+              icon = '🪨';
+              title = 'Blocked by rubble';
             } else if (hasKeyItem) {
               icon = '🔑';
               title = 'Key';
             } else if (hasCollectible) {
               icon = '💎';
               title = 'Treasure';
-            } else if (cluesHere.length > 0 && anyUndiscovered) {
-              icon = '📜';
-              title = `${cluesHere.length > 1 ? `${cluesHere.length} clues` : `${cluesHere[0].kind} clue`} (undiscovered)`;
-            } else if (allDiscovered) {
+            } else if (showClueHere) {
               icon = '📖';
-              title = `${cluesHere.length > 1 ? `${cluesHere.length} clues` : `${cluesHere[0].kind} clue`} (read)`;
+              title = cluesHere.length > 1 ? `${cluesHere.length} clues here` : `${cluesHere[0].kind} clue`;
+            } else if (isActivatedSwitch) {
+              icon = '🕹️';
+              title = 'Lever (pulled)';
             } else if (isStart) {
               icon = '🏁';
               title = 'Start';
@@ -111,7 +136,7 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
             >
               {isFlagged && !isPlayer && <span className="tile__flag">🚩</span>}
               {icon && <span className="tile__icon">{icon}</span>}
-              {cluesHere.length > 1 && <span className="tile__clue-count">{cluesHere.length}</span>}
+              {showClueHere && cluesHere.length > 1 && <span className="tile__clue-count">{cluesHere.length}</span>}
               {isPlayer && <span className="tile__player">🧙</span>}
             </button>
           );

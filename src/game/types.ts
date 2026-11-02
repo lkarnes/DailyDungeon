@@ -13,7 +13,8 @@ export type ClueKind =
   | 'proximity'
   | 'environmental'
   | 'directional'
-  | 'connection';
+  | 'connection'
+  | 'lever';
 
 export interface ClueData {
   id: string;
@@ -22,6 +23,12 @@ export interface ClueData {
   text: string;
   /** Whether this clue's constraint was actually used by the solver to prove a safe route. */
   loadBearing: boolean;
+}
+
+/** A hidden lever (switch) that, once stepped on, permanently clears a rubble-blocked tile elsewhere. */
+export interface Gate {
+  switchPos: Position;
+  blockedPos: Position;
 }
 
 export interface DungeonMap {
@@ -38,9 +45,13 @@ export interface DungeonMap {
   trapCount: number;
   key?: Position;
   door?: Position;
+  /** Hidden switch/blocked-tile pairs (separate from the key/door mechanic). */
+  gates: Gate[];
+  /** Permanently impassable obstacle tiles (visually distinct from plain cave walls) - no switch ever clears these. */
+  permanentBlocks: Position[];
   collectibles: Position[];
   clues: ClueData[];
-  /** Minimum number of moves required to reach the exit safely (accounting for key/door). */
+  /** Minimum number of moves required to reach the exit safely (accounting for key/door and gates). */
   optimalMoves: number;
   optimalPath: Position[];
 }

@@ -20,7 +20,7 @@
  * solver (see clues.ts for details) - they help a human reason, but the
  * generator never *relies* on them to prove solvability.
  */
-import type { Position, TileTerrain } from './types';
+import type { Gate, Position, TileTerrain } from './types';
 import { posKey } from './types';
 import { bfsPathWithKey, inBounds } from './grid';
 
@@ -294,32 +294,58 @@ export function validateSolvable(
   keyPos?: Position,
   doorPos?: Position,
   axiomSafeTiles: string[] = [],
+  gates: Gate[] = [],
 ): SolvabilityResult {
   const startKey = posKey(start);
   const activeIdx = new Set<number>();
   let connectedSafe = new Set<string>([startKey, ...axiomSafeTiles]);
   if (keyPos) connectedSafe.add(posKey(keyPos));
+  // Switch tiles are never traps (guaranteed by construction, like the key tile),
+  // so they're inherently safe - the only thing still to prove is reachability.
+  for (const g of gates) connectedSafe.add(posKey(g.switchPos));
 
   const computeConnected = (safeSet: Set<string>): Set<string> => {
-    // BFS from start through tiles in safeSet (door only passable if key tile is in safeSet, i.e. reachable).
     const rows = terrain.length;
     const cols = terrain[0].length;
-    const hasKeyAccess = !doorPos || !keyPos || safeSet.has(posKey(keyPos));
-    const visited = new Set<string>([startKey]);
-    const queue: Position[] = [start];
-    let qi = 0;
-    while (qi < queue.length) {
-      const cur = queue[qi++];
-      for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        const np = { row: cur.row + dr, col: cur.col + dc };
-        if (!inBounds(rows, cols, np) || terrain[np.row][np.col] === 'wall') continue;
-        const nk = posKey(np);
-        if (visited.has(nk)) continue;
-        if (!safeSet.has(nk)) continue;
-        if (doorPos && nk === posKey(doorPos) && !hasKeyAccess) continue;
-        visited.add(nk);
-        queue.push(np);
+    const plainBfs = (unlockedMask: number, hasKeyAccess: boolean): Set<string> => {
+      const visited = new Set<string>([startKey]);
+      const queue: Position[] = [start];
+      let qi = 0;
+      while (qi < queue.length) {
+        const cur = queue[qi++];
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          const np = { row: cur.row + dr, col: cur.col + dc };
+          if (!inBounds(rows, cols, np) || terrain[np.row][np.col] === 'wall') continue;
+          const nk = posKey(np);
+          if (visited.has(nk)) continue;
+          if (!safeSet.has(nk)) continue;
+          if (doorPos && nk === posKey(doorPos) && !hasKeyAccess) continue;
+          const gateIdx = gates.findIndex((g) => posKey(g.blockedPos) === nk);
+          if (gateIdx !== -1 && !(unlockedMask & (1 << gateIdx))) continue;
+          visited.add(nk);
+          queue.push(np);
+        }
       }
+      return visited;
+    };
+
+    // Nested fixpoint: a gate only opens once its switch tile has been reached,
+    // which may itself require another gate to have opened first. Re-running the
+    // plain BFS and re-checking which switches are now visited converges in at
+    // most gates.length + 1 passes (each pass either unlocks >=1 new gate or stops).
+    let unlockedMask = 0;
+    let hasKeyAccess = !doorPos || !keyPos || safeSet.has(posKey(keyPos));
+    let visited = plainBfs(unlockedMask, hasKeyAccess);
+    for (let iter = 0; iter < gates.length + 1; iter++) {
+      let nextMask = unlockedMask;
+      gates.forEach((g, i) => {
+        if (visited.has(posKey(g.switchPos))) nextMask |= 1 << i;
+      });
+      const nextHasKeyAccess = hasKeyAccess || (!!keyPos && visited.has(posKey(keyPos)));
+      if (nextMask === unlockedMask && nextHasKeyAccess === hasKeyAccess) break;
+      unlockedMask = nextMask;
+      hasKeyAccess = nextHasKeyAccess;
+      visited = plainBfs(unlockedMask, hasKeyAccess);
     }
     return visited;
   };
@@ -364,6 +390,7 @@ export function shortestSafePath(
   blocked: Set<string>,
   keyPos?: Position,
   doorPos?: Position,
+  gates: Gate[] = [],
 ): Position[] | null {
-  return bfsPathWithKey(terrain, start, exit, blocked, keyPos, doorPos);
+  return bfsPathWithKey(terrain, start, exit, blocked, keyPos, doorPos, gates);
 }

@@ -1,7 +1,7 @@
 /** Local persistence: per-day results, streaks, and lifetime stats. No backend required for v1. */
 import type { RunSummary } from './scoring';
 
-const RESULTS_KEY = 'dd_results_v1';
+const RESULTS_KEY = 'dd_results_v2';
 const STATS_KEY = 'dd_stats_v1';
 
 export interface StoredResult extends RunSummary {

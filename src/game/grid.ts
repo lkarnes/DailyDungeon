@@ -3,7 +3,7 @@
  * shortest paths (plain and key/door aware), and articulation-point
  * detection used to place a fair key/door gate.
  */
-import type { Position, TileTerrain } from './types';
+import type { Gate, Position, TileTerrain } from './types';
 import { posKey } from './types';
 import type { SeededRandom } from './rng';
 
@@ -108,6 +108,34 @@ export function keepLargestFloorRegion(walls: boolean[][]): { terrain: TileTerra
   return { terrain, region: best };
 }
 
+/**
+ * Multi-destination BFS distance map from `origin` over all non-wall tiles
+ * (ignoring traps/gates - purely structural). Used to classify each of the
+ * player's moves as "progress" or "detour" for the shareable results trail;
+ * since wall layout is visible to the player from the start, this distance
+ * is never a spoiler.
+ */
+export function bfsDistanceMap(terrain: TileTerrain[][], origin: Position): Map<string, number> {
+  const rows = terrain.length;
+  const cols = terrain[0].length;
+  const dist = new Map<string, number>([[posKey(origin), 0]]);
+  const queue: Position[] = [origin];
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    const curDist = dist.get(posKey(cur))!;
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const np = { row: cur.row + dr, col: cur.col + dc };
+      if (!inBounds(rows, cols, np) || terrain[np.row][np.col] === 'wall') continue;
+      const nk = posKey(np);
+      if (dist.has(nk)) continue;
+      dist.set(nk, curDist + 1);
+      queue.push(np);
+    }
+  }
+  return dist;
+}
+
 /** Plain BFS shortest path over floor tiles, optionally excluding a set of blocked tiles. Returns null if unreachable. */
 export function bfsPath(
   terrain: TileTerrain[][],
@@ -153,6 +181,11 @@ export function bfsPath(
  * BFS over the state space (tile, hasKey) so that a locked door is only
  * traversable after the key tile has been visited. Falls back to a plain
  * walk if there is no key/door on this map.
+ *
+ * `gates` adds an independent set of hidden switch/blocked-tile pairs: a
+ * `blockedPos` tile is impassable until its paired `switchPos` tile has been
+ * visited. Gate count is expected to stay small (0-3), so the activation
+ * state is tracked as a bitmask.
  */
 export function bfsPathWithKey(
   terrain: TileTerrain[][],
@@ -161,24 +194,30 @@ export function bfsPathWithKey(
   blocked: Set<string>,
   keyPos?: Position,
   doorPos?: Position,
+  gates: Gate[] = [],
 ): Position[] | null {
-  if (!keyPos || !doorPos) return bfsPath(terrain, start, goal, blocked);
+  if (!keyPos && !doorPos && gates.length === 0) return bfsPath(terrain, start, goal, blocked);
   const rows = terrain.length;
   const cols = terrain[0].length;
-  const doorKey = posKey(doorPos);
-  const stateKey = (p: Position, hasKey: boolean) => `${posKey(p)}|${hasKey ? 1 : 0}`;
-  const startHasKey = posKey(start) === posKey(keyPos);
-  const startState = stateKey(start, startHasKey);
+  const doorKey = doorPos ? posKey(doorPos) : null;
+  const keyK = keyPos ? posKey(keyPos) : null;
+  const gateBlockedKeys = gates.map((g) => posKey(g.blockedPos));
+  const gateSwitchKeys = gates.map((g) => posKey(g.switchPos));
+
+  const initialMask = gateSwitchKeys.reduce((mask, sk, i) => (posKey(start) === sk ? mask | (1 << i) : mask), 0);
+  const stateKey = (p: Position, hasKey: boolean, mask: number) => `${posKey(p)}|${hasKey ? 1 : 0}|${mask}`;
+  const startHasKey = keyK !== null && posKey(start) === keyK;
+  const startState = stateKey(start, startHasKey, initialMask);
   const prev = new Map<string, string | null>();
   prev.set(startState, null);
-  const queue: { p: Position; hasKey: boolean }[] = [{ p: start, hasKey: startHasKey }];
+  const queue: { p: Position; hasKey: boolean; mask: number }[] = [{ p: start, hasKey: startHasKey, mask: initialMask }];
   let qi = 0;
   let goalState: string | null = null;
   while (qi < queue.length) {
     const cur = queue[qi++];
     const curKey = posKey(cur.p);
     if (curKey === posKey(goal)) {
-      goalState = stateKey(cur.p, cur.hasKey);
+      goalState = stateKey(cur.p, cur.hasKey, cur.mask);
       break;
     }
     for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
@@ -186,12 +225,16 @@ export function bfsPathWithKey(
       if (!inBounds(rows, cols, np) || terrain[np.row][np.col] === 'wall') continue;
       const nk = posKey(np);
       if (blocked.has(nk)) continue;
-      if (nk === doorKey && !cur.hasKey) continue; // locked
-      const nextHasKey = cur.hasKey || nk === posKey(keyPos);
-      const ns = stateKey(np, nextHasKey);
+      if (nk === doorKey && !cur.hasKey) continue; // locked door
+      const gateIdx = gateBlockedKeys.indexOf(nk);
+      if (gateIdx !== -1 && !(cur.mask & (1 << gateIdx))) continue; // rubble not yet cleared
+      const nextHasKey = cur.hasKey || nk === keyK;
+      const switchIdx = gateSwitchKeys.indexOf(nk);
+      const nextMask = switchIdx !== -1 ? cur.mask | (1 << switchIdx) : cur.mask;
+      const ns = stateKey(np, nextHasKey, nextMask);
       if (prev.has(ns)) continue;
-      prev.set(ns, stateKey(cur.p, cur.hasKey));
-      queue.push({ p: np, hasKey: nextHasKey });
+      prev.set(ns, stateKey(cur.p, cur.hasKey, cur.mask));
+      queue.push({ p: np, hasKey: nextHasKey, mask: nextMask });
     }
   }
   if (goalState === null) return null;

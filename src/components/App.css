@@ -179,6 +179,15 @@
   background: var(--dd-wall);
 }
 
+.tile--boulder {
+  background: #1d1a26;
+  color: #6b6478;
+}
+
+.tile--blocked {
+  background: #3a2a1e;
+}
+
 .tile--floor {
   background: var(--dd-floor);
 }

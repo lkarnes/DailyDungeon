@@ -26,12 +26,17 @@ and previewed with `npm run preview`.
 2. **Explore** - move with the arrow keys, `WASD`, the on-screen arrow buttons, or by clicking an
    adjacent tile. Moving costs one "move"; nothing else does.
 3. **Uncover clues** - walking onto a clue tile automatically reveals it and adds it to your Clue
-   Log (free to re-read at any time).
+   Log (free to re-read at any time). Clues are fogged: you can only ever see the clue on the tile
+   you're *currently* standing on - the board never shows you where other clues are, so you have to
+   actually explore rather than just walking toward visible markers.
 4. **Deduce safe tiles** - combine clues to work out which tiles must be safe and which must hide a
    trap, the same way you would reason through a Minesweeper board.
-5. **Reach the exit** - in as few moves as possible, without ever stepping on a trap.
-6. **See your score** - moves used vs. the mathematically optimal route, clues discovered, hints
-   used, and a final score, plus your streak and lifetime stats.
+5. **Clear obstacles** - locked doors need a key, rubble-blocked passages need a hidden lever (a
+   lever clue always points the way); some rubble is permanent and can never be cleared, so you may
+   need to find another route entirely.
+6. **Reach the exit** - in as few moves as possible, without ever stepping on a trap.
+7. **See your score** - moves used vs. the mathematically optimal route, time taken, clues
+   discovered, hints used, and a final score, plus your streak and lifetime stats.
 
 Free, no-move-cost tools:
 - 🚩 **Mark Trap** - flag a tile you suspect is dangerous, purely for your own bookkeeping.
@@ -53,6 +58,26 @@ stats or streak.
 | 🪨 Environmental | "The floor here is cracked - a trap is adjacent." | Yes |
 | 🧭 Directional | "A trap lies somewhere north of this tile." | Yes |
 | 🔗 Connection | "Two traps are aligned along the same row/column." | No - flavor/human reasoning aid only |
+| 🕹️ Lever | "A hidden lever is 2 tiles south, 1 tile west of here." | N/A - always true, always guaranteed |
+
+Each clue kind has several riddle-style phrasing variants (chosen randomly), so the dungeon reads a
+little differently every day even when the underlying logic is the same. The main numeric/proximity
+sweep is intentionally capped to a modest number of tiles per map - if that isn't quite enough to
+prove a safe route, the generator tops up with the minimum number of guaranteed specific reveals
+needed, so hint density stays reasonable without ever sacrificing solvability.
+
+## Obstacles
+
+| Obstacle | Cleared by | Notes |
+| --- | --- | --- |
+| 🔒 Locked door | Finding its key 🔑 anywhere in the dungeon | Opens permanently once you're carrying the key |
+| 🪨 Rubble-blocked passage | Finding and pulling its hidden lever 🕹️ | A lever clue is always guaranteed to point to it |
+| ⛔ Impassable rubble | Never | A permanent dead end - route around it |
+
+Keys/doors and switch/lever gates are independent mechanics and can both appear on the same day.
+Harder days place more of each, plus more permanent rubble, which lengthens and complicates routes
+without ever risking an unsolvable map (every placement is verified against the full route before
+the dungeon is published).
 
 ## Scoring
 
@@ -66,7 +91,8 @@ stats or streak.
 | Each scan used | -50 |
 
 The results screen also shows your move count next to the dungeon's mathematically optimal (shortest
-possible, trap-free) route, so you can see exactly how efficient your run was.
+possible, trap-free) route, plus how long the run took. Time is tracked purely for bragging rights -
+there's no time pressure and it never affects your score.
 
 ## Daily generation & fairness guarantee
 
@@ -79,42 +105,56 @@ Generation pipeline (see [`src/game/`](./src/game)):
 1. **Cave layout** - a cellular-automaton cave is carved out of the grid, and only the largest
    connected floor region is kept ([`grid.ts`](./src/game/grid.ts)).
 2. **Start & exit** - placed via double-BFS to maximize the distance between them.
-3. **Traps & items** - traps are scattered with light spacing; an optional key/door pair is placed at
-   a genuine graph *articulation point* (a provable chokepoint, found via cut-vertex detection) so the
-   gate is never just decorative; collectibles are sprinkled on leftover floor tiles
+3. **Traps** - scattered with light spacing so hazards aren't clustered unfairly.
+4. **Key/door** - an optional, separate single-item lock: the door sits at a genuine graph
+   *articulation point* (a provable chokepoint, found via cut-vertex detection), and its key is
+   placed in start's reachable side of the graph once the door is removed.
+5. **Switch/blocked-tile gates** - zero to three additional, independent gates. Each is placed the
+   same chokepoint way as the key/door, but *nested*: every new gate assumes all previously-placed
+   gates are still closed, so clearing them in sequence is always guaranteed to work. A reserved
+   host tile is set aside for each gate's guaranteed lever clue.
+6. **Permanent obstacles** - a handful of extra floor tiles are converted into permanently
+   impassable "boulders" (never a wall - a real tile that could have been floor), each one verified
+   not to break the already-finalized route (including every gate), to add maze complexity without
+   ever risking an unsolvable map. Collectibles are sprinkled on whatever floor tiles remain
    ([`generator.ts`](./src/game/generator.ts)).
-4. **Clues** - built up tile by tile until a logical-deduction solver can prove a safe path exists
+7. **Clues** - built up tile by tile (capped to keep hint density reasonable) until a
+   logical-deduction solver can prove a safe path exists, topping up with the minimum number of
+   guaranteed reveals if the cap wasn't quite enough, plus one guaranteed lever clue per gate
    ([`clues.ts`](./src/game/clues.ts)).
-5. **Validation** - a constraint-propagation + bounded CSP solver
+8. **Validation** - a constraint-propagation + bounded CSP solver
    ([`solver.ts`](./src/game/solver.ts)) simulates a perfectly careful player: a clue can only be
-   "read" once its tile is part of the region already *proven* safe and connected to the start. The
-   generator only publishes a dungeon once this solver confirms the exit becomes provably reachable
-   without ever requiring a blind guess. If a candidate map can't be proven solvable, the generator
-   retries with a new seed variant (deterministically, so the result is still always the same for
-   everyone on a given day).
+   "read" once its tile is part of the region already *proven* safe and connected to the start
+   (accounting for which gates have been reached and opened so far). The generator only publishes a
+   dungeon once this solver confirms the exit becomes provably reachable without ever requiring a
+   blind guess. If a candidate map can't be proven solvable, the generator retries with a new seed
+   variant (deterministically, so the result is still always the same for everyone on a given day).
 
 This is the same core idea as a Minesweeper solver: numerical/specific/proximity/environmental/
 directional clues become hard constraints (`exact`, `atLeastOne`, `specific`), combined with the
 globally known trap count, and propagated to a fixpoint, falling back to bounded backtracking search
 over small connected constraint components. "Connection" clues are included for flavor and genuine
-human-usable information but are intentionally not relied upon by the automated proof.
+human-usable information but are intentionally not relied upon by the automated proof. Lever clues
+carry no trap constraint at all - they're guaranteed true statements about switch locations.
 
 Automated tests ([`src/game/generator.test.ts`](./src/game/generator.test.ts)) regenerate dungeons
 for 70 consecutive days and assert, for every single one: the dungeon is solvable, a trap-free path
-exists and matches the recorded optimal move count, every clue sits on a real floor tile (never the
-undiscoverable start tile), at least one clue is load-bearing, and any key/door gate is a genuine
-chokepoint.
+exists and matches the recorded optimal move count (accounting for key/door and every gate), every
+clue sits on a real floor tile (never the undiscoverable start tile), at least one clue is
+load-bearing, every gate is a genuine nested chokepoint with its switch reachable beforehand and a
+matching lever clue, and every permanent block is baked into the terrain without colliding with any
+reserved tile.
 
 ## Difficulty rhythm
 
 Like many daily puzzle games, the week has a rhythm:
 
-| Day(s) | Grid | Trap density | Key/door |
-| --- | --- | --- | --- |
-| Mon - Tue | 9x9 | ~10% | never |
-| Wed - Thu | 10x10 | ~12% | sometimes |
-| Fri - Sat | 11x11 | ~13% | usually |
-| Sunday | 13x13 | ~15% | always |
+| Day(s) | Grid | Trap density | Key/door | Gates | Permanent blocks |
+| --- | --- | --- | --- | --- | --- |
+| Mon - Tue | 9x9 | ~11% | never | 0-1 | ~2% of floor |
+| Wed - Thu | 10x10 | ~13% | sometimes | 0-2 | ~3% of floor |
+| Fri - Sat | 11x11 | ~15% | usually | 1-2 | ~4% of floor |
+| Sunday | 13x13 | ~17% | always | 2-3 | ~5% of floor |
 
 ## Project structure
 
@@ -140,7 +180,7 @@ src/
 
 - **No global leaderboard yet.** Stats, streaks, and personal bests are stored in the browser's
   `localStorage` only. A backend would be needed for real cross-player leaderboards; in the meantime,
-  the "Share Result" button produces a Wordle-style spoiler-free summary you can paste anywhere to
-  compare with friends.
+  the "Share Result" button produces a Wordle-style spoiler-free summary (a row of 🟩/🟨 squares - one
+  per move, green for progress toward the exit and yellow for a detour - plus score, moves, time, and
+  clue count) you can paste anywhere to compare with friends.
 - **No accounts/sync across devices.**
-- Locked door/key puzzles only ever place a single gate per dungeon.

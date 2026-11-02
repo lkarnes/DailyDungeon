@@ -44,6 +44,10 @@ export type DungeonDifficulty = {
   allowKeyDoor: boolean;
   keyDoorChance: number;
   collectibleCount: number;
+  /** Inclusive [min, max] number of hidden switch/blocked-tile gates to attempt to place. */
+  gateCountRange: [number, number];
+  /** Fraction of floor tiles converted into permanent, non-removable obstacles. */
+  permanentBlockRate: number;
   label: string;
 };
 
@@ -55,14 +59,54 @@ export function getDifficultyForDate(date: Date): DungeonDifficulty {
   const day = date.getDay(); // 0 = Sunday ... 6 = Saturday
   switch (day) {
     case 0: // Sunday - the big one
-      return { rows: 13, cols: 13, trapRate: 0.15, allowKeyDoor: true, keyDoorChance: 1, collectibleCount: 3, label: 'Treacherous' };
+      return {
+        rows: 13,
+        cols: 13,
+        trapRate: 0.17,
+        allowKeyDoor: true,
+        keyDoorChance: 1,
+        collectibleCount: 3,
+        gateCountRange: [2, 3],
+        permanentBlockRate: 0.05,
+        label: 'Treacherous',
+      };
     case 5: // Friday
     case 6: // Saturday
-      return { rows: 11, cols: 11, trapRate: 0.13, allowKeyDoor: true, keyDoorChance: 0.7, collectibleCount: 2, label: 'Hard' };
+      return {
+        rows: 11,
+        cols: 11,
+        trapRate: 0.15,
+        allowKeyDoor: true,
+        keyDoorChance: 0.7,
+        collectibleCount: 2,
+        gateCountRange: [1, 2],
+        permanentBlockRate: 0.04,
+        label: 'Hard',
+      };
     case 3: // Wednesday
     case 4: // Thursday
-      return { rows: 10, cols: 10, trapRate: 0.12, allowKeyDoor: true, keyDoorChance: 0.35, collectibleCount: 1, label: 'Medium' };
+      return {
+        rows: 10,
+        cols: 10,
+        trapRate: 0.13,
+        allowKeyDoor: true,
+        keyDoorChance: 0.35,
+        collectibleCount: 1,
+        gateCountRange: [0, 2],
+        permanentBlockRate: 0.03,
+        label: 'Medium',
+      };
     default: // Monday, Tuesday
-      return { rows: 9, cols: 9, trapRate: 0.1, allowKeyDoor: false, keyDoorChance: 0, collectibleCount: 1, label: 'Easy' };
+      return {
+        rows: 9,
+        cols: 9,
+        trapRate: 0.11,
+        allowKeyDoor: false,
+        keyDoorChance: 0,
+        collectibleCount: 1,
+        gateCountRange: [0, 1],
+        permanentBlockRate: 0.02,
+        label: 'Easy',
+      };
   }
 }

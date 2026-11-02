@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
 import type { RunSummary } from '../game/scoring';
-import { buildShareText } from '../game/scoring';
+import { buildShareText, formatDuration } from '../game/scoring';
 import type { LifetimeStats } from '../game/storage';
 
 function Stat({ label, value }: { label: string; value: string | number }) {
@@ -49,14 +49,17 @@ export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractic
         </div>
 
         {summary.trapTriggered ? (
-          <p className="results__message">You triggered a hidden trap after {summary.movesUsed} moves. Come back tomorrow for a new dungeon!</p>
+          <p className="results__message">
+            You triggered a hidden trap after {summary.movesUsed} moves ({formatDuration(summary.elapsedMs)}). Come back tomorrow for a new
+            dungeon!
+          </p>
         ) : (
           <>
             <div className="results__grid">
               <Stat label="Moves used" value={summary.movesUsed} />
               <Stat label="Optimal moves" value={summary.optimalMoves} />
+              <Stat label="Time" value={formatDuration(summary.elapsedMs)} />
               <Stat label="Clues discovered" value={`${summary.cluesDiscovered} / ${summary.totalClues}`} />
-              <Stat label="Traps triggered" value={summary.trapTriggered ? 1 : 0} />
             </div>
             <p className="results__tagline">
               {diff <= 0 ? '✨ Perfect route - no wasted moves!' : `${diff} move${diff === 1 ? '' : 's'} away from optimal!`}

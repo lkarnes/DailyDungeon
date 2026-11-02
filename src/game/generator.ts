@@ -4,7 +4,7 @@
  * generation, and solver validation - retrying with a fresh seed derivative
  * whenever a step fails the fairness checks.
  */
-import type { DungeonMap, Position, TileTerrain } from './types';
+import type { DungeonMap, Gate, Position, TileTerrain } from './types';
 import { posKey } from './types';
 import { SeededRandom } from './rng';
 import { getDailySeed, getEpoch, getDifficultyForDate, type DungeonDifficulty } from './seed';
@@ -18,6 +18,27 @@ import {
 import { generateClues } from './clues';
 
 const MAX_ATTEMPTS = 300;
+
+/** BFS over floor tiles reachable from `origin`, treating every tile in `blocked` as impassable. */
+function regionFrom(terrain: TileTerrain[][], origin: Position, blocked: Set<string>): Set<string> {
+  const rows = terrain.length;
+  const cols = terrain[0].length;
+  const visited = new Set<string>([posKey(origin)]);
+  const queue: Position[] = [origin];
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const np = { row: cur.row + dr, col: cur.col + dc };
+      if (np.row < 0 || np.row >= rows || np.col < 0 || np.col >= cols || terrain[np.row][np.col] === 'wall') continue;
+      const nk = posKey(np);
+      if (blocked.has(nk) || visited.has(nk)) continue;
+      visited.add(nk);
+      queue.push(np);
+    }
+  }
+  return visited;
+}
 
 function bfsFarthest(terrain: TileTerrain[][], from: Position): { pos: Position; dist: number } {
   const rows = terrain.length;
@@ -110,25 +131,7 @@ function tryGenerate(seed: string, dateKey: string, difficulty: DungeonDifficult
     });
     if (validDoors.length > 0) {
       const door = rng.pick(validDoors);
-      // Find start's side of the graph once the door is removed.
-      const blocked = new Set([posKey(door)]);
-      const reachableFromStart = new Set<string>();
-      {
-        const queue = [start];
-        reachableFromStart.add(posKey(start));
-        let qi = 0;
-        while (qi < queue.length) {
-          const cur = queue[qi++];
-          for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-            const np = { row: cur.row + dr, col: cur.col + dc };
-            if (np.row < 0 || np.row >= rows || np.col < 0 || np.col >= cols || terrain[np.row][np.col] === 'wall') continue;
-            const nk = posKey(np);
-            if (trapSet.has(nk) || blocked.has(nk) || reachableFromStart.has(nk)) continue;
-            reachableFromStart.add(nk);
-            queue.push(np);
-          }
-        }
-      }
+      const reachableFromStart = regionFrom(terrain, start, new Set([...trapSet, posKey(door)]));
       const keyCandidates = Array.from(reachableFromStart)
         .filter((k) => k !== posKey(start) && k !== posKey(door))
         .map((k) => {
@@ -142,22 +145,126 @@ function tryGenerate(seed: string, dateKey: string, difficulty: DungeonDifficult
     }
   }
 
-  // Verify the (possibly key/door-gated) map is still completable.
+  // Optional hidden switch / blocked-tile gates: a separate mechanic from key/door.
+  // Each gate is placed at a genuine chokepoint, treating all previously-placed
+  // gates as still closed, so gates naturally nest (you must clear gate 1 before
+  // gate 2's chokepoint even becomes reachable to test/use). Every gate also
+  // reserves a distinct host tile for a guaranteed clue pointing at its switch.
+  const gates: Gate[] = [];
+  const gateClueHosts: Position[] = [];
+  {
+    const [minGates, maxGates] = difficulty.gateCountRange;
+    const targetGateCount = maxGates > 0 ? rng.intRange(minGates, maxGates) : 0;
+    const reservedSoFar = new Set<string>([posKey(start), posKey(exit), ...traps.map(posKey)]);
+    if (keyPos) reservedSoFar.add(posKey(keyPos));
+    if (doorPos) reservedSoFar.add(posKey(doorPos));
+    const closedForTesting = new Set<string>(trapSet);
+
+    for (let i = 0; i < targetGateCount; i++) {
+      const safeFloorForGate = region.filter((p) => !closedForTesting.has(posKey(p)));
+      if (safeFloorForGate.length === 0) break;
+      const cuts = findArticulationPoints(terrain, safeFloorForGate);
+      const validCuts = cuts.filter((cut) => {
+        if (reservedSoFar.has(posKey(cut))) return false;
+        const testBlocked = new Set(closedForTesting);
+        testBlocked.add(posKey(cut));
+        return bfsPath(terrain, start, exit, testBlocked) === null;
+      });
+      if (validCuts.length === 0) break;
+      const blockedPos = rng.pick(validCuts);
+      const testBlocked = new Set(closedForTesting);
+      testBlocked.add(posKey(blockedPos));
+      const reachable = Array.from(regionFrom(terrain, start, testBlocked))
+        .map((k) => {
+          const [row, col] = k.split(',').map(Number);
+          return { row, col };
+        })
+        .filter((p) => !reservedSoFar.has(posKey(p)) && posKey(p) !== posKey(blockedPos));
+      if (reachable.length < 2) break;
+      const shuffledReachable = rng.shuffle(reachable);
+      const switchPos = shuffledReachable[0];
+      const clueHostPos = shuffledReachable[1];
+
+      gates.push({ switchPos, blockedPos });
+      gateClueHosts.push(clueHostPos);
+      reservedSoFar.add(posKey(switchPos));
+      reservedSoFar.add(posKey(blockedPos));
+      reservedSoFar.add(posKey(clueHostPos));
+      closedForTesting.add(posKey(blockedPos));
+    }
+  }
+
+  // Permanently impassable obstacles (never clearable by any switch) - added after
+  // traps/key/door/gates are finalized, each one verified not to break the overall
+  // route (including all gates), to add maze complexity and length without risking
+  // an unsolvable map. Visually distinct from both plain cave walls and the
+  // switch-removable rubble gates above.
+  const permanentBlocks: Position[] = [];
+  {
+    const reservedForBlocks = new Set<string>([posKey(start), posKey(exit), ...traps.map(posKey)]);
+    if (keyPos) reservedForBlocks.add(posKey(keyPos));
+    if (doorPos) reservedForBlocks.add(posKey(doorPos));
+    gates.forEach((g) => {
+      reservedForBlocks.add(posKey(g.switchPos));
+      reservedForBlocks.add(posKey(g.blockedPos));
+    });
+    gateClueHosts.forEach((p) => reservedForBlocks.add(posKey(p)));
+
+    const candidatesForBlocks = region.filter((p) => {
+      if (reservedForBlocks.has(posKey(p))) return false;
+      if (chebyshevDist(p, start) <= 1 || chebyshevDist(p, exit) <= 1) return false;
+      return true;
+    });
+    const shuffledBlockCandidates = rng.shuffle(candidatesForBlocks);
+    const targetBlockCount = Math.round(region.length * difficulty.permanentBlockRate);
+
+    for (const candidate of shuffledBlockCandidates) {
+      if (permanentBlocks.length >= targetBlockCount) break;
+      const prevTerrain = terrain[candidate.row][candidate.col];
+      terrain[candidate.row][candidate.col] = 'wall';
+      const stillHasFullRoute = bfsPathWithKey(terrain, start, exit, trapSet, keyPos, doorPos, gates) !== null;
+      const switchesStillReachable = gates.every((g) => bfsPath(terrain, start, g.switchPos, trapSet) !== null);
+      if (stillHasFullRoute && switchesStillReachable) {
+        permanentBlocks.push(candidate);
+      } else {
+        terrain[candidate.row][candidate.col] = prevTerrain;
+      }
+    }
+  }
+  const permanentBlockSet = new Set(permanentBlocks.map(posKey));
+  const regionAfterBlocks = region.filter((p) => !permanentBlockSet.has(posKey(p)));
+
+  // Verify the (possibly key/door- and gate-gated) map is still completable.
   const blockedForFinal = new Set(trapSet);
-  const finalPath = bfsPathWithKey(terrain, start, exit, blockedForFinal, keyPos, doorPos);
+  const finalPath = bfsPathWithKey(terrain, start, exit, blockedForFinal, keyPos, doorPos, gates);
   if (!finalPath) return null;
 
   // Collectibles: optional, cosmetic score bonus, never blocking.
   const reserved = new Set([posKey(start), posKey(exit), ...traps.map(posKey)]);
   if (keyPos) reserved.add(posKey(keyPos));
   if (doorPos) reserved.add(posKey(doorPos));
-  const collectiblePool = rng.shuffle(region.filter((p) => !reserved.has(posKey(p))));
+  gates.forEach((g) => {
+    reserved.add(posKey(g.switchPos));
+    reserved.add(posKey(g.blockedPos));
+  });
+  gateClueHosts.forEach((p) => reserved.add(posKey(p)));
+  const collectiblePool = rng.shuffle(regionAfterBlocks.filter((p) => !reserved.has(posKey(p))));
   const collectibles = collectiblePool.slice(0, difficulty.collectibleCount);
   collectibles.forEach((c) => reserved.add(posKey(c)));
 
-  const floorKeys = region.map(posKey).filter((k) => k !== posKey(start) && k !== posKey(exit) && k !== (keyPos ? posKey(keyPos) : '') && k !== (doorPos ? posKey(doorPos) : ''));
+  const floorKeys = regionAfterBlocks
+    .map(posKey)
+    .filter(
+      (k) =>
+        k !== posKey(start) &&
+        k !== posKey(exit) &&
+        k !== (keyPos ? posKey(keyPos) : '') &&
+        k !== (doorPos ? posKey(doorPos) : '') &&
+        !gates.some((g) => posKey(g.switchPos) === k || posKey(g.blockedPos) === k),
+    );
 
-  const { clues, solvable } = generateClues(terrain, rows, cols, start, exit, traps, floorKeys, rng, keyPos, doorPos);
+  const gateInfos = gates.map((g, i) => ({ gate: g, clueHostPos: gateClueHosts[i] }));
+  const { clues, solvable } = generateClues(terrain, rows, cols, start, exit, traps, floorKeys, rng, keyPos, doorPos, gateInfos);
   if (!solvable) return null;
 
   return {
@@ -174,6 +281,8 @@ function tryGenerate(seed: string, dateKey: string, difficulty: DungeonDifficult
     trapCount: traps.length,
     key: keyPos,
     door: doorPos,
+    gates,
+    permanentBlocks,
     collectibles,
     clues,
     optimalMoves: finalPath.length - 1,
@@ -204,8 +313,16 @@ export function generateDungeonMap(dateKey: string, date: Date): DungeonMap {
   const difficulty = getDifficultyForDate(date);
   const map = generateWithRetries(dateKey, difficulty, (attempt) => getDailySeed(dateKey, attempt));
   if (map) return map;
-  // Extremely unlikely fallback: shrink difficulty and try again without key/door.
-  const fallbackDifficulty: DungeonDifficulty = { ...difficulty, rows: 9, cols: 9, allowKeyDoor: false, keyDoorChance: 0 };
+  // Extremely unlikely fallback: shrink difficulty and try again without key/door or gates.
+  const fallbackDifficulty: DungeonDifficulty = {
+    ...difficulty,
+    rows: 9,
+    cols: 9,
+    allowKeyDoor: false,
+    keyDoorChance: 0,
+    gateCountRange: [0, 0],
+    permanentBlockRate: 0,
+  };
   const fallbackMap = generateWithRetries(dateKey, fallbackDifficulty, (attempt) => getDailySeed(`${dateKey}-fallback`, attempt));
   if (fallbackMap) return fallbackMap;
   throw new Error('Failed to generate a valid Daily Dungeon map after exhausting all attempts.');

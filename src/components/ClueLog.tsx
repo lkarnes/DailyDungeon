@@ -8,6 +8,7 @@ const CLUE_ICON: Record<string, string> = {
   environmental: '🪨',
   directional: '🧭',
   connection: '🔗',
+  lever: '🕹️',
 };
 
 function LogRow({ entry, index }: { entry: LogEntry; index: number }) {

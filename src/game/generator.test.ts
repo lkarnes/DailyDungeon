@@ -34,7 +34,7 @@ describe('generateDungeonMap', () => {
       expect(trapKeys.has(posKey(map.exit))).toBe(false);
 
       // A real trap-free path must exist and match the recorded optimalMoves.
-      const path = bfsPathWithKey(map.terrain, map.start, map.exit, trapKeys, map.key, map.door);
+      const path = bfsPathWithKey(map.terrain, map.start, map.exit, trapKeys, map.key, map.door, map.gates);
       expect(path).not.toBeNull();
       expect(path!.length - 1).toBe(map.optimalMoves);
       for (const step of path!) {
@@ -56,6 +56,31 @@ describe('generateDungeonMap', () => {
         const blockedByDoor = new Set([...trapKeys, posKey(map.door)]);
         const withoutKeyPath = bfsPath(map.terrain, map.start, map.exit, blockedByDoor);
         expect(withoutKeyPath).toBeNull();
+      }
+
+      // Every switch/blocked-tile gate must be a genuine chokepoint, its switch
+      // must be reachable without crossing its own blocked tile, and a lever
+      // clue must exist pointing at it. Gates are generated as a nested
+      // sequence (each one assumes earlier gates are still closed), so the
+      // chokepoint check must keep every earlier gate closed too.
+      const leverClues = map.clues.filter((c) => c.kind === 'lever');
+      expect(leverClues.length).toBe(map.gates.length);
+      map.gates.forEach((gate, i) => {
+        const priorBlockedPos = map.gates.slice(0, i).map((g) => posKey(g.blockedPos));
+        const blockedByGate = new Set([...trapKeys, ...priorBlockedPos, posKey(gate.blockedPos)]);
+        const withoutGatePath = bfsPath(map.terrain, map.start, map.exit, blockedByGate);
+        expect(withoutGatePath).toBeNull();
+
+        const reachableWithoutThisGate = bfsPath(map.terrain, map.start, gate.switchPos, blockedByGate);
+        expect(reachableWithoutThisGate).not.toBeNull();
+      });
+
+      // Permanent blocks are genuinely impassable (baked into terrain) and never
+      // coincide with start, exit, traps, key/door, or any gate tile.
+      for (const block of map.permanentBlocks) {
+        expect(map.terrain[block.row][block.col]).toBe('wall');
+        expect(posKey(block)).not.toBe(posKey(map.start));
+        expect(posKey(block)).not.toBe(posKey(map.exit));
       }
     });
   }

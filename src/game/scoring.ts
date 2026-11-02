@@ -21,6 +21,10 @@ export interface RunSummary {
   totalCollectibles: number;
   hintsUsed: number;
   score: number;
+  /** Total wall-clock time spent on the run, in milliseconds. Informational only - never affects scoring. */
+  elapsedMs: number;
+  /** Per-move trail used for the shareable result: 'progress' = closer to the exit, 'detour' = sideways/backtrack. */
+  trail: ('progress' | 'detour')[];
 }
 
 export function computeScore(args: {
@@ -42,7 +46,16 @@ export function computeScore(args: {
 
 export function buildSummary(
   map: DungeonMap,
-  args: { completed: boolean; trapTriggered: boolean; movesUsed: number; cluesDiscovered: number; collectiblesFound: number; hintsUsed: number },
+  args: {
+    completed: boolean;
+    trapTriggered: boolean;
+    movesUsed: number;
+    cluesDiscovered: number;
+    collectiblesFound: number;
+    hintsUsed: number;
+    elapsedMs: number;
+    trail: ('progress' | 'detour')[];
+  },
 ): RunSummary {
   return {
     completed: args.completed,
@@ -55,13 +68,41 @@ export function buildSummary(
     totalCollectibles: map.collectibles.length,
     hintsUsed: args.hintsUsed,
     score: computeScore(args),
+    elapsedMs: args.elapsedMs,
+    trail: args.trail,
   };
+}
+
+/** Formats milliseconds as "m:ss" (or "h:mm:ss" for very long runs). */
+export function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '-';
+  const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const mm = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes);
+  const ss = String(seconds).padStart(2, '0');
+  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+const TRAIL_ROW_SIZE = 10;
+
+/** Renders the move trail as rows of colored squares, Wordle-style, ending in a win/loss marker. */
+function buildTrailGrid(summary: RunSummary): string {
+  const squares: string[] = summary.trail.map((step) => (step === 'progress' ? '🟩' : '🟨'));
+  squares.push(summary.trapTriggered ? '💀' : summary.completed ? '🏆' : '⬛');
+  const rows: string[] = [];
+  for (let i = 0; i < squares.length; i += TRAIL_ROW_SIZE) {
+    rows.push(squares.slice(i, i + TRAIL_ROW_SIZE).join(''));
+  }
+  return rows.join('\n');
 }
 
 /** Builds a Wordle-style shareable text block (no spoilers, no map details). */
 export function buildShareText(summary: RunSummary, epoch: number, difficultyLabel: string): string {
   const lines: string[] = [];
   lines.push(`Daily Dungeon #${epoch} (${difficultyLabel})`);
+  lines.push(buildTrailGrid(summary));
   if (summary.trapTriggered) {
     lines.push(`💀 Caught in a trap after ${summary.movesUsed} moves.`);
   } else if (summary.completed) {
@@ -69,7 +110,7 @@ export function buildShareText(summary: RunSummary, epoch: number, difficultyLab
     lines.push(`🏆 Escaped in ${summary.movesUsed} moves (optimal: ${summary.optimalMoves})`);
     lines.push(diff <= 0 ? '✨ Perfect route!' : `${diff} move${diff === 1 ? '' : 's'} off optimal`);
   }
-  lines.push(`📜 Clues: ${summary.cluesDiscovered}/${summary.totalClues}  ⭐ Score: ${summary.score}`);
+  lines.push(`📜 Clues: ${summary.cluesDiscovered}/${summary.totalClues}  ⭐ Score: ${summary.score}  ⏱️ ${formatDuration(summary.elapsedMs)}`);
   if (summary.hintsUsed > 0) lines.push(`🔦 Hints used: ${summary.hintsUsed}`);
   return lines.join('\n');
 }

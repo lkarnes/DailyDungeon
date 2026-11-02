@@ -1,7 +1,8 @@
 /** React hook wrapping the per-run game state machine (movement, clues, hints, win/loss). */
-import { useCallback, useMemo, useReducer } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import type { ClueData, DungeonMap, Position } from '../game/types';
 import { posKey, samePos, DIRECTIONS } from '../game/types';
+import { bfsDistanceMap } from '../game/grid';
 import { buildSummary, type RunSummary } from '../game/scoring';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
@@ -13,9 +14,13 @@ export type LogEntry =
 export interface GameState {
   map: DungeonMap;
   playerPos: Position;
+  /** Every tile stepped on, in order (including revisits) - used for the shareable result trail. */
+  path: Position[];
   visited: Set<string>;
   discoveredClueIds: Set<string>;
   hasKey: boolean;
+  /** Indices into map.gates that have been activated (their blocked tile is now passable). */
+  activatedGates: Set<number>;
   collectedCollectibles: Set<string>;
   flagged: Set<string>;
   movesUsed: number;
@@ -39,9 +44,11 @@ function initialState(map: DungeonMap): GameState {
   return {
     map,
     playerPos: map.start,
+    path: [map.start],
     visited: new Set([posKey(map.start)]),
     discoveredClueIds: new Set(),
     hasKey: false,
+    activatedGates: new Set(),
     collectedCollectibles: new Set(),
     flagged: new Set(),
     movesUsed: 0,
@@ -100,11 +107,21 @@ function reducer(state: GameState, action: Action): GameState {
       return { ...state, log: [...state.log, { kind: 'event', text: 'The door is locked. You need to find the key first.' }] };
     }
 
+    const gateIdx = map.gates.findIndex((g) => posKey(g.blockedPos) === targetKey);
+    if (gateIdx !== -1 && !state.activatedGates.has(gateIdx)) {
+      return {
+        ...state,
+        log: [...state.log, { kind: 'event', text: 'The passage is blocked by rubble. Perhaps a hidden lever nearby could clear it.' }],
+      };
+    }
+
     const movesUsed = state.movesUsed + 1;
     const visited = new Set(state.visited);
     visited.add(targetKey);
+    const path = [...state.path, target];
 
     let hasKey = state.hasKey;
+    const activatedGates = new Set(state.activatedGates);
     const collectedCollectibles = new Set(state.collectedCollectibles);
     const discoveredClueIds = new Set(state.discoveredClueIds);
     const log = [...state.log];
@@ -112,6 +129,11 @@ function reducer(state: GameState, action: Action): GameState {
     if (map.key && posKey(map.key) === targetKey && !hasKey) {
       hasKey = true;
       log.push({ kind: 'event', text: 'You found the key!' });
+    }
+    const switchIdx = map.gates.findIndex((g) => posKey(g.switchPos) === targetKey);
+    if (switchIdx !== -1 && !activatedGates.has(switchIdx)) {
+      activatedGates.add(switchIdx);
+      log.push({ kind: 'event', text: 'You pull a hidden lever... somewhere, a blocked passage rumbles open!' });
     }
     if (map.collectibles.some((c) => posKey(c) === targetKey) && !collectedCollectibles.has(targetKey)) {
       collectedCollectibles.add(targetKey);
@@ -130,8 +152,10 @@ function reducer(state: GameState, action: Action): GameState {
       return {
         ...state,
         playerPos: target,
+        path,
         visited,
         hasKey,
+        activatedGates,
         collectedCollectibles,
         discoveredClueIds,
         movesUsed,
@@ -145,8 +169,10 @@ function reducer(state: GameState, action: Action): GameState {
     return {
       ...state,
       playerPos: target,
+      path,
       visited,
       hasKey,
+      activatedGates,
       collectedCollectibles,
       discoveredClueIds,
       movesUsed,
@@ -161,13 +187,36 @@ function reducer(state: GameState, action: Action): GameState {
 
 export function useGameState(map: DungeonMap) {
   const [state, dispatch] = useReducer(reducer, map, initialState);
+  const [startedAt] = useState(() => Date.now());
+  const [finishedAt, setFinishedAt] = useState<number | null>(null);
 
   const move = useCallback((dir: Direction) => dispatch({ type: 'MOVE', dir }), []);
   const toggleFlag = useCallback((pos: Position) => dispatch({ type: 'TOGGLE_FLAG', pos }), []);
   const scan = useCallback((pos: Position) => dispatch({ type: 'SCAN', pos }), []);
 
+  // Captures the real wall-clock moment the run ended - this is intentionally an
+  // effect (not derived during render) since it must record "now" exactly once,
+  // the instant the external clock crosses that transition, not be recomputed.
+  useEffect(() => {
+    if (state.status !== 'playing' && finishedAt === null) {
+      setFinishedAt(Date.now());
+    }
+  }, [state.status, finishedAt]);
+
   const summary: RunSummary | null = useMemo(() => {
-    if (state.status === 'playing') return null;
+    if (state.status === 'playing' || finishedAt === null) return null;
+    const elapsedMs = finishedAt - startedAt;
+
+    // Classify each move as "progress" (strictly closer to the exit, ignoring
+    // traps/gates - just wall layout, which is always visible) or "detour".
+    const distanceToExit = bfsDistanceMap(map.terrain, map.exit);
+    const trail: ('progress' | 'detour')[] = [];
+    for (let i = 1; i < state.path.length; i++) {
+      const prevDist = distanceToExit.get(posKey(state.path[i - 1]));
+      const curDist = distanceToExit.get(posKey(state.path[i]));
+      trail.push(prevDist !== undefined && curDist !== undefined && curDist < prevDist ? 'progress' : 'detour');
+    }
+
     return buildSummary(map, {
       completed: state.status === 'won',
       trapTriggered: state.status === 'lost',
@@ -175,8 +224,10 @@ export function useGameState(map: DungeonMap) {
       cluesDiscovered: state.discoveredClueIds.size,
       collectiblesFound: state.collectedCollectibles.size,
       hintsUsed: state.hintsUsed,
+      elapsedMs,
+      trail,
     });
-  }, [state, map]);
+  }, [state, map, finishedAt, startedAt]);
 
   return { state, move, toggleFlag, scan, summary };
 }
