@@ -435,6 +435,19 @@
   text-align: center;
 }
 
+.results__practice-banner {
+  align-self: stretch;
+  padding: 0.4rem 0.75rem;
+  border: 1px dashed var(--dd-text-dim);
+  border-radius: 8px;
+  background: rgba(201, 139, 255, 0.12);
+  color: var(--dd-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
 .results__already-played {
   color: var(--dd-text-dim);
   font-size: 0.9rem;

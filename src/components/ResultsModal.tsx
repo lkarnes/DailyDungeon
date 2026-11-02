@@ -44,6 +44,7 @@ export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractic
   return (
     <Modal title={isPractice ? (summary.trapTriggered ? 'You were caught! (Practice)' : 'Practice escape complete') : summary.trapTriggered ? 'You were caught!' : 'Daily escape complete'} onClose={onClose}>
       <div className="results">
+        {isPractice && <p className="results__practice-banner">🛠️ PRACTICE MODE - not counted toward your daily score or streak</p>}
         {alreadyPlayed && <p className="results__already-played">You already played Daily Dungeon #{epoch} today. Here&rsquo;s how you did:</p>}
         <div className="results__badge" title={badge.label} aria-hidden="true">
           {badge.emoji}
@@ -56,8 +57,8 @@ export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractic
 
         {summary.trapTriggered ? (
           <p className="results__message">
-            You triggered a hidden trap after {summary.movesUsed} moves ({formatDuration(summary.elapsedMs)}). Come back tomorrow for a new
-            dungeon!
+            You triggered a hidden trap after {summary.movesUsed}             moves ({formatDuration(summary.elapsedMs)}).{' '}
+                        {isPractice ? 'Try another practice run!' : 'Come back tomorrow for a new dungeon!'}
           </p>
         ) : (
           <>
@@ -73,19 +74,21 @@ export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractic
           </>
         )}
 
-        <div className="results__streak">
-          🔥 Current streak: {stats.currentStreak} day{stats.currentStreak === 1 ? '' : 's'} &middot; Best: {stats.maxStreak}
-        </div>
+        {!isPractice && (
+          <div className="results__streak">
+            🔥 Current streak: {stats.currentStreak} day{stats.currentStreak === 1 ? '' : 's'} &middot; Best: {stats.maxStreak}
+          </div>
+        )}
 
         <div className="results__actions">
           <button type="button" className="results__btn" onClick={handleShare}>
             {copied ? '✅ Copied!' : '📋 Share Result'}
           </button>
           <button type="button" className="results__btn results__btn--secondary" onClick={onPractice}>
-            🎲 Practice Mode
+            {isPractice ? '🎲 Another Practice Run' : '🎲 Practice Mode'}
           </button>
         </div>
-        <p className="results__next">A brand-new Daily Dungeon unlocks tomorrow.</p>
+        {!isPractice && <p className="results__next">A brand-new Daily Dungeon unlocks tomorrow.</p>}
       </div>
     </Modal>
   );
