@@ -92,7 +92,7 @@ export function getDifficultyForDate(date: Date): DungeonDifficulty {
         allowKeyDoor: true,
         keyDoorChance: 0.35,
         collectibleCount: 1,
-        gateCountRange: [0, 2],
+        gateCountRange: [1, 2],
         permanentBlockRate: 0.03,
         label: 'Medium',
       };
@@ -104,7 +104,7 @@ export function getDifficultyForDate(date: Date): DungeonDifficulty {
         allowKeyDoor: false,
         keyDoorChance: 0,
         collectibleCount: 1,
-        gateCountRange: [0, 1],
+        gateCountRange: [1, 1],
         permanentBlockRate: 0.02,
         label: 'Easy',
       };

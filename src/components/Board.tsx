@@ -1,9 +1,10 @@
 /**
  * Renders the dungeon grid: terrain, player, items, flags, and (post-game) revealed
- * traps. Clue markers are fog-of-war'd - only shown on the tile the player is
- * currently standing on, never on unvisited or already-left tiles (see the Clue
- * Log for history). Permanently blocked "boulder" tiles are visually distinct from
- * both plain cave walls and switch-clearable rubble gates.
+ * traps. Clue markers are fog-of-war'd for *unvisited* tiles only - once you've
+ * stood on a tile, its clue marker stays visible permanently, so you can always
+ * see on the map where each of your Clue Log entries came from. Permanently
+ * blocked "boulder" tiles are visually distinct from both plain cave walls and
+ * switch-clearable rubble gates.
  */
 import type { DungeonMap, Position } from '../game/types';
 import { posKey } from '../game/types';
@@ -55,15 +56,16 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
           const scannedSafe = state.scannedSafe.has(k);
           const scannedTrap = state.scannedTrap.has(k);
           const cluesHere = cluesByTile.get(k) ?? [];
-          // Fog of war: clue markers are only ever shown on the tile the player is
-          // *currently* standing on - never on unvisited tiles (that would let you
-          // see every clue location and trace a path without exploring) and not on
-          // tiles you've already walked away from (that info lives in the Clue Log).
-          const showClueHere = isPlayer && cluesHere.length > 0;
+          // Fog of war: clue markers are hidden on unvisited tiles (so you can't see
+          // every clue location and trace a path without exploring), but once you've
+          // visited a tile its marker stays visible permanently, so you can always
+          // find your way back to where a Clue Log entry came from.
+          const showClueHere = isVisited && cluesHere.length > 0;
           const hasKeyItem = keyKey === k && !state.hasKey;
           const isDoorTile = doorKey === k;
           const gateIdxForBlocked = blockedTileGate.get(k);
           const isBlockedTile = gateIdxForBlocked !== undefined && !state.activatedGates.has(gateIdxForBlocked);
+          const isClearedGateTile = gateIdxForBlocked !== undefined && state.activatedGates.has(gateIdxForBlocked) && isVisited;
           const gateIdxForSwitch = switchTileGate.get(k);
           const isActivatedSwitch = gateIdxForSwitch !== undefined && state.activatedGates.has(gateIdxForSwitch);
           const hasCollectible = collectibleKeys.has(k) && !state.collectedCollectibles.has(k);
@@ -113,6 +115,9 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
             } else if (isActivatedSwitch) {
               icon = '🕹️';
               title = 'Lever (pulled)';
+            } else if (isClearedGateTile) {
+              icon = '✅';
+              title = 'Cleared passage (lever pulled elsewhere)';
             } else if (isStart) {
               icon = '🏁';
               title = 'Start';

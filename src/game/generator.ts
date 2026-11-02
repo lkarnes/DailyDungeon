@@ -192,6 +192,12 @@ function tryGenerate(seed: string, dateKey: string, difficulty: DungeonDifficult
       reservedSoFar.add(posKey(clueHostPos));
       closedForTesting.add(posKey(blockedPos));
     }
+
+    // If this difficulty mandates a minimum number of gates but this particular
+    // cave layout didn't have enough genuine chokepoints to place them all,
+    // reject the attempt so the outer retry loop tries a different seed/layout
+    // instead of silently publishing a dungeon with fewer gates than intended.
+    if (gates.length < minGates) return null;
   }
 
   // Permanently impassable obstacles (never clearable by any switch) - added after

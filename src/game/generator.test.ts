@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateDungeonMap } from '../game/generator';
+import { getDifficultyForDate } from '../game/seed';
 import { bfsPath, bfsPathWithKey } from '../game/grid';
 import { posKey } from '../game/types';
 
@@ -50,6 +51,12 @@ describe('generateDungeonMap', () => {
 
       // At least one clue must be load-bearing (i.e. the solver actually used it).
       expect(map.clues.some((c) => c.loadBearing)).toBe(true);
+
+      // Every difficulty tier mandates a minimum number of switch/blocked-tile
+      // gates; the generator must reject layouts that can't meet it rather than
+      // silently publishing a dungeon with fewer gates than promised.
+      const minGates = getDifficultyForDate(dateFromKey(dateKey)).gateCountRange[0];
+      expect(map.gates.length).toBeGreaterThanOrEqual(minGates);
 
       // If a key/door is present, the door must be a genuine gate: unreachable without the key.
       if (map.key && map.door) {
