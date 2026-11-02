@@ -27,7 +27,7 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
           <li>🔢 <strong>Numerical</strong> - exactly how many traps are in the 8 surrounding tiles.</li>
           <li>🎯 <strong>Specific</strong> - pinpoints one exact trap location.</li>
           <li>📍 <strong>Proximity</strong> - a trap is within a certain number of tiles.</li>
-          <li>🪨 <strong>Environmental</strong> - cracked floor means a trap is adjacent.</li>
+          <li>🕸️ <strong>Environmental</strong> - cracked floor means a trap is adjacent.</li>
           <li>🧭 <strong>Directional</strong> - a trap lies somewhere in a given compass direction.</li>
           <li>🔗 <strong>Connection</strong> - two traps share the same corridor (row or column).</li>
           <li>🕹️ <strong>Lever</strong> - points you toward a hidden switch that clears a blocked passage.</li>

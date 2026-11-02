@@ -5,7 +5,7 @@ const CLUE_ICON: Record<string, string> = {
   numerical: '🔢',
   specific: '🎯',
   proximity: '📍',
-  environmental: '🪨',
+  environmental: '🕸️',
   directional: '🧭',
   connection: '🔗',
   lever: '🕹️',

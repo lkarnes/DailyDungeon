@@ -55,7 +55,7 @@ stats or streak.
 | 🔢 Numerical | "Exactly 2 traps among the 8 tiles surrounding this spot." | Yes |
 | 🎯 Specific | "A trap is 2 tiles north, 1 tile east of here." | Yes |
 | 📍 Proximity | "A trap is within 2 tiles of this spot." | Yes |
-| 🪨 Environmental | "The floor here is cracked - a trap is adjacent." | Yes |
+| 🕸️ Environmental | "The floor here is cracked - a trap is adjacent." | Yes |
 | 🧭 Directional | "A trap lies somewhere north of this tile." | Yes |
 | 🔗 Connection | "Two traps are aligned along the same row/column." | No - flavor/human reasoning aid only |
 | 🕹️ Lever | "A hidden lever is 2 tiles south, 1 tile west of here." | N/A - always true, always guaranteed |
