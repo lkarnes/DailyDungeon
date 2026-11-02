@@ -105,6 +105,8 @@ the dungeon is published).
 | Complete without using a scan | +100 |
 | Each scan used | -50 |
 
+If a trap catches you, you still keep partial credit: +25 per clue discovered, +50 per treasure, and
++2 per move explored (no escape bonus, no move penalty).
 The results screen also shows your move count next to the dungeon's mathematically optimal (shortest
 possible, trap-free) route, plus how long the run took. Time is tracked purely for bragging rights -
 there's no time pressure and it never affects your score.

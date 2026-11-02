@@ -8,6 +8,8 @@ export const SCORING = {
   NO_HINTS_BONUS: 100,
   PER_COLLECTIBLE: 50,
   PER_HINT: -50,
+  /** Consolation points per step taken on a failed run, so exploring is never worth zero. */
+  FAILED_PER_MOVE: 2,
 } as const;
 
 export interface RunSummary {
@@ -34,7 +36,14 @@ export function computeScore(args: {
   collectiblesFound: number;
   hintsUsed: number;
 }): number {
-  if (!args.completed) return 0;
+  if (!args.completed) {
+    // Partial credit: clues and treasure found plus a little for distance explored.
+    const partial =
+      args.cluesDiscovered * SCORING.PER_CLUE +
+      args.collectiblesFound * SCORING.PER_COLLECTIBLE +
+      args.movesUsed * SCORING.FAILED_PER_MOVE;
+    return Math.max(0, Math.round(partial));
+  }
   let score = SCORING.BASE_COMPLETE;
   score += args.movesUsed * SCORING.PER_MOVE;
   score += args.cluesDiscovered * SCORING.PER_CLUE;
