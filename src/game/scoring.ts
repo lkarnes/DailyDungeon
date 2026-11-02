@@ -73,6 +73,31 @@ export function buildSummary(
   };
 }
 
+export interface ScoreBadge {
+  emoji: string;
+  label: string;
+}
+
+/**
+ * Picks a single emoji/label badge summarizing how the run went, from a
+ * perfect 👑 crown (optimal moves, every treasure found, no hints) down to
+ * a 💀 skull if a trap ended the run.
+ */
+export function getScoreBadge(summary: RunSummary): ScoreBadge {
+  if (summary.trapTriggered) return { emoji: '💀', label: 'Caught!' };
+  if (!summary.completed) return { emoji: '❔', label: 'Unfinished' };
+
+  const diff = summary.movesUsed - summary.optimalMoves;
+  const foundAllTreasure = summary.totalCollectibles === 0 || summary.collectiblesFound === summary.totalCollectibles;
+  const flawless = diff <= 0 && summary.hintsUsed === 0;
+
+  if (flawless && foundAllTreasure) return { emoji: '👑', label: 'Perfect Run!' };
+  if (flawless) return { emoji: '🏆', label: 'Flawless Route' };
+  if (diff <= 2 && summary.hintsUsed === 0) return { emoji: '🥇', label: 'Great Run' };
+  if (diff <= 5) return { emoji: '🥈', label: 'Good Run' };
+  return { emoji: '🥉', label: 'Escaped' };
+}
+
 /** Formats milliseconds as "m:ss" (or "h:mm:ss" for very long runs). */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return '-';
@@ -87,10 +112,10 @@ export function formatDuration(ms: number): string {
 
 const TRAIL_ROW_SIZE = 10;
 
-/** Renders the move trail as rows of colored squares, Wordle-style, ending in a win/loss marker. */
+/** Renders the move trail as rows of colored squares, Wordle-style, ending in the summary's score badge. */
 function buildTrailGrid(summary: RunSummary): string {
   const squares: string[] = summary.trail.map((step) => (step === 'progress' ? '🟩' : '🟨'));
-  squares.push(summary.trapTriggered ? '💀' : summary.completed ? '🏆' : '⬛');
+  squares.push(getScoreBadge(summary).emoji);
   const rows: string[] = [];
   for (let i = 0; i < squares.length; i += TRAIL_ROW_SIZE) {
     rows.push(squares.slice(i, i + TRAIL_ROW_SIZE).join(''));
@@ -100,8 +125,9 @@ function buildTrailGrid(summary: RunSummary): string {
 
 /** Builds a Wordle-style shareable text block (no spoilers, no map details). */
 export function buildShareText(summary: RunSummary, epoch: number, difficultyLabel: string): string {
+  const badge = getScoreBadge(summary);
   const lines: string[] = [];
-  lines.push(`Daily Dungeon #${epoch} (${difficultyLabel})`);
+  lines.push(`${badge.emoji} Daily Dungeon #${epoch} (${difficultyLabel}) - ${badge.label}`);
   lines.push(buildTrailGrid(summary));
   if (summary.trapTriggered) {
     lines.push(`💀 Caught in a trap after ${summary.movesUsed} moves.`);

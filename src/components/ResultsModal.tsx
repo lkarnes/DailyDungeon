@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
 import type { RunSummary } from '../game/scoring';
-import { buildShareText, formatDuration } from '../game/scoring';
+import { buildShareText, formatDuration, getScoreBadge } from '../game/scoring';
 import type { LifetimeStats } from '../game/storage';
 
 function Stat({ label, value }: { label: string; value: string | number }) {
@@ -27,6 +27,7 @@ interface ResultsModalProps {
 export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractice, onClose, alreadyPlayed }: ResultsModalProps) {
   const [copied, setCopied] = useState(false);
   const diff = summary.movesUsed - summary.optimalMoves;
+  const badge = getScoreBadge(summary);
 
   async function handleShare() {
     const text = buildShareText(summary, epoch, difficultyLabel);
@@ -43,9 +44,13 @@ export function ResultsModal({ summary, epoch, difficultyLabel, stats, onPractic
     <Modal title={summary.trapTriggered ? 'You were caught!' : 'Daily escape complete'} onClose={onClose}>
       <div className="results">
         {alreadyPlayed && <p className="results__already-played">You already played Daily Dungeon #{epoch} today. Here&rsquo;s how you did:</p>}
+        <div className="results__badge" title={badge.label} aria-hidden="true">
+          {badge.emoji}
+        </div>
+        <p className="results__badge-label">{badge.label}</p>
         <div className="results__score-block">
           <span className="results__score">{summary.score}</span>
-          <span className="results__score-caption">EXAMPLE SCORE</span>
+          <span className="results__score-caption">SCORE</span>
         </div>
 
         {summary.trapTriggered ? (

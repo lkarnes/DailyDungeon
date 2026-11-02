@@ -365,6 +365,14 @@
   background: var(--dd-bg-elevated);
   border-radius: 8px;
   padding: 0.4rem 0.55rem;
+  border: 1px solid transparent;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.clue-log__row--current {
+  background: #332a52;
+  border-color: var(--dd-accent);
+  box-shadow: 0 0 0 1px var(--dd-accent) inset;
 }
 
 .clue-log__row--event {
@@ -430,6 +438,21 @@
 .results__already-played {
   color: var(--dd-text-dim);
   font-size: 0.9rem;
+}
+
+.results__badge {
+  font-size: 3.5rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(201, 139, 255, 0.45));
+}
+
+.results__badge-label {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  color: var(--dd-accent-2);
 }
 
 .results__score-block {

@@ -76,7 +76,9 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
         </ul>
         <p>
           Your result also shows how your move count compares to the optimal (shortest possible safe) route, plus how long
-          you took - time is tracked for bragging rights only and never affects your score.
+          you took - time is tracked for bragging rights only and never affects your score. You also earn a badge based on
+          how clean your run was: 👑 Perfect Run (optimal moves, every treasure, no hints), 🏆 Flawless Route (optimal
+          moves, no hints), 🥇 Great, 🥈 Good, or 🥉 Escaped.
         </p>
       </section>
       <section>
