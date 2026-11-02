@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest';
+import { generateDungeonMap } from '../game/generator';
+import { bfsPath, bfsPathWithKey } from '../game/grid';
+import { posKey } from '../game/types';
+
+function dateFromKey(dateKey: string): Date {
+  return new Date(`${dateKey}T12:00:00`);
+}
+
+function dateKeyPlusDays(base: Date, days: number): string {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+describe('generateDungeonMap', () => {
+  const base = new Date('2024-01-01T12:00:00');
+  const sampleSize = 70; // ~10 weeks: covers every weekday difficulty tier many times over
+
+  for (let i = 0; i < sampleSize; i++) {
+    const dateKey = dateKeyPlusDays(base, i);
+    it(`produces a fair, solvable map for ${dateKey}`, () => {
+      const map = generateDungeonMap(dateKey, dateFromKey(dateKey));
+
+      expect(map.traps.length).toBe(map.trapCount);
+      expect(map.traps.length).toBeGreaterThan(0);
+
+      // Start and exit must never be traps, and must be far apart.
+      const trapKeys = new Set(map.traps.map(posKey));
+      expect(trapKeys.has(posKey(map.start))).toBe(false);
+      expect(trapKeys.has(posKey(map.exit))).toBe(false);
+
+      // A real trap-free path must exist and match the recorded optimalMoves.
+      const path = bfsPathWithKey(map.terrain, map.start, map.exit, trapKeys, map.key, map.door);
+      expect(path).not.toBeNull();
+      expect(path!.length - 1).toBe(map.optimalMoves);
+      for (const step of path!) {
+        expect(trapKeys.has(posKey(step))).toBe(false);
+      }
+
+      // Every clue's stated tile must be a floor tile, and never the start tile itself
+      // (a clue placed there could never be discovered, since reaching start costs no move).
+      for (const clue of map.clues) {
+        expect(map.terrain[clue.tile.row][clue.tile.col]).toBe('floor');
+        expect(posKey(clue.tile)).not.toBe(posKey(map.start));
+      }
+
+      // At least one clue must be load-bearing (i.e. the solver actually used it).
+      expect(map.clues.some((c) => c.loadBearing)).toBe(true);
+
+      // If a key/door is present, the door must be a genuine gate: unreachable without the key.
+      if (map.key && map.door) {
+        const blockedByDoor = new Set([...trapKeys, posKey(map.door)]);
+        const withoutKeyPath = bfsPath(map.terrain, map.start, map.exit, blockedByDoor);
+        expect(withoutKeyPath).toBeNull();
+      }
+    });
+  }
+
+  it('is fully deterministic for the same date', () => {
+    const dateKey = '2024-06-15';
+    const date = dateFromKey(dateKey);
+    const mapA = generateDungeonMap(dateKey, date);
+    const mapB = generateDungeonMap(dateKey, date);
+    expect(mapA.terrain).toEqual(mapB.terrain);
+    expect(mapA.traps).toEqual(mapB.traps);
+    expect(mapA.start).toEqual(mapB.start);
+    expect(mapA.exit).toEqual(mapB.exit);
+    expect(mapA.clues.map((c) => c.text)).toEqual(mapB.clues.map((c) => c.text));
+  });
+});

@@ -1,0 +1,67 @@
+:root {
+  color-scheme: dark;
+  --dd-bg: #15121d;
+  --dd-bg-elevated: #1e1a2a;
+  --dd-panel: #241f36;
+  --dd-border: #3a3350;
+  --dd-text: #ece7f7;
+  --dd-text-dim: #a89fc2;
+  --dd-accent: #c98bff;
+  --dd-accent-2: #6fd6c4;
+  --dd-danger: #ff6b6b;
+  --dd-warning: #ffd166;
+  --dd-floor: #2c2640;
+  --dd-floor-visited: #3a3160;
+  --dd-wall: #0e0c14;
+  --dd-font: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+
+  font-family: var(--dd-font);
+  line-height: 1.5;
+  font-weight: 400;
+  background-color: var(--dd-bg);
+  color: var(--dd-text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #221d33 0%, #110e18 70%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 0.4em 0;
+}
+
+ul {
+  padding-left: 1.2em;
+}
+
+p {
+  margin: 0 0 0.6em 0;
+}
+
+a {
+  color: var(--dd-accent);
+}
