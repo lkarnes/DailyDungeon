@@ -24,6 +24,9 @@ and previewed with `npm run preview`.
 It's a static site (no backend; results live in localStorage). Build command `npm run build`,
 output directory `dist`. Connect the GitHub repo to Vercel, Netlify, or Cloudflare Pages and use those settings.
 
+GitHub Pages is also set up: `.github/workflows/deploy.yml` tests, builds, and publishes `dist` on every push to `main`.
+One-time setup: repo **Settings → Pages → Source: GitHub Actions**. The site is then at `https://lkarnes.github.io/DailyDungeon/`.
+
 ## Gameplay loop
 
 1. **Choose your difficulty** - Easy, Medium, Hard, or Treacherous. Nothing is forced by the day of
