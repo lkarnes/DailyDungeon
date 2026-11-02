@@ -7,7 +7,7 @@
 import type { DungeonMap, Gate, Position, TileTerrain } from './types';
 import { posKey } from './types';
 import { SeededRandom } from './rng';
-import { getDailySeed, getEpoch, getDifficultyForDate, type DungeonDifficulty } from './seed';
+import { getDailySeed, getEpoch, DIFFICULTY_PRESETS, type DungeonDifficulty, type DifficultyName } from './seed';
 import {
   generateCaveWalls,
   keepLargestFloorRegion,
@@ -168,7 +168,14 @@ function tryGenerate(seed: string, dateKey: string, difficulty: DungeonDifficult
         if (reservedSoFar.has(posKey(cut))) return false;
         const testBlocked = new Set(closedForTesting);
         testBlocked.add(posKey(cut));
-        return bfsPath(terrain, start, exit, testBlocked) === null;
+        // A single shared BFS answers both checks: the candidate must disconnect
+        // the exit, but must NOT accidentally cut off any previously-placed
+        // gate's switch (a new chokepoint can live in a different branch of the
+        // cave than the exit route and still sever an earlier switch reachable
+        // only through that branch).
+        const reachable = regionFrom(terrain, start, testBlocked);
+        if (reachable.has(posKey(exit))) return false;
+        return gates.every((g) => reachable.has(posKey(g.switchPos)));
       });
       if (validCuts.length === 0) break;
       const blockedPos = rng.pick(validCuts);
@@ -229,7 +236,15 @@ function tryGenerate(seed: string, dateKey: string, difficulty: DungeonDifficult
       const prevTerrain = terrain[candidate.row][candidate.col];
       terrain[candidate.row][candidate.col] = 'wall';
       const stillHasFullRoute = bfsPathWithKey(terrain, start, exit, trapSet, keyPos, doorPos, gates) !== null;
-      const switchesStillReachable = gates.every((g) => bfsPath(terrain, start, g.switchPos, trapSet) !== null);
+      // Each gate's switch must stay reachable from start with every gate up
+      // to *and including* itself still treated as closed (matching the
+      // invariant established when gates were placed above - a switch is
+      // reached before its own gate opens, let alone any later one).
+      const switchesStillReachable = gates.every((g, i) => {
+        const closedUpToAndIncluding = new Set(trapSet);
+        gates.slice(0, i + 1).forEach((upTo) => closedUpToAndIncluding.add(posKey(upTo.blockedPos)));
+        return bfsPath(terrain, start, g.switchPos, closedUpToAndIncluding) !== null;
+      });
       if (stillHasFullRoute && switchesStillReachable) {
         permanentBlocks.push(candidate);
       } else {
@@ -296,11 +311,6 @@ function tryGenerate(seed: string, dateKey: string, difficulty: DungeonDifficult
   };
 }
 
-/** Exposed for one-off generation attempts (e.g. practice mode) that don't need the retry loop's seed scheme. */
-export function tryGenerateFromSeed(seed: string, dateKey: string, difficulty: DungeonDifficulty): DungeonMap | null {
-  return tryGenerate(seed, dateKey, difficulty);
-}
-
 /** Generates a map by trying many seed variants (built from `seedForAttempt`) until one passes all fairness checks. */
 export function generateWithRetries(
   dateKey: string,
@@ -314,10 +324,10 @@ export function generateWithRetries(
   return null;
 }
 
-/** Generates (and validates) the dungeon map for a given date key, retrying with seed variants until one passes all fairness checks. */
-export function generateDungeonMap(dateKey: string, date: Date): DungeonMap {
-  const difficulty = getDifficultyForDate(date);
-  const map = generateWithRetries(dateKey, difficulty, (attempt) => getDailySeed(dateKey, attempt));
+/** Generates (and validates) the dungeon map for a given date key and player-chosen difficulty, retrying with seed variants until one passes all fairness checks. */
+export function generateDungeonMap(dateKey: string, difficultyName: DifficultyName): DungeonMap {
+  const difficulty = DIFFICULTY_PRESETS[difficultyName];
+  const map = generateWithRetries(dateKey, difficulty, (attempt) => getDailySeed(dateKey, difficultyName, attempt));
   if (map) return map;
   // Extremely unlikely fallback: shrink difficulty and try again without key/door or gates.
   const fallbackDifficulty: DungeonDifficulty = {
@@ -329,7 +339,9 @@ export function generateDungeonMap(dateKey: string, date: Date): DungeonMap {
     gateCountRange: [0, 0],
     permanentBlockRate: 0,
   };
-  const fallbackMap = generateWithRetries(dateKey, fallbackDifficulty, (attempt) => getDailySeed(`${dateKey}-fallback`, attempt));
+  const fallbackMap = generateWithRetries(dateKey, fallbackDifficulty, (attempt) =>
+    getDailySeed(`${dateKey}-fallback`, difficultyName, attempt),
+  );
   if (fallbackMap) return fallbackMap;
   throw new Error('Failed to generate a valid Daily Dungeon map after exhausting all attempts.');
 }

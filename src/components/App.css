@@ -79,6 +79,41 @@
   margin-bottom: 0.75rem;
 }
 
+/* ---------- Difficulty selector ---------- */
+.difficulty-selector {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.difficulty-selector__btn {
+  position: relative;
+  background: var(--dd-bg-elevated);
+  border: 1px solid var(--dd-border);
+  color: var(--dd-text);
+  border-radius: 10px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.difficulty-selector__btn:hover {
+  border-color: var(--dd-accent);
+}
+
+.difficulty-selector__btn--active {
+  background: #332a52;
+  border-color: var(--dd-accent);
+  color: var(--dd-accent);
+  font-weight: 700;
+}
+
+.difficulty-selector__check {
+  margin-left: 0.35rem;
+  color: var(--dd-accent-2);
+}
+
 /* ---------- HUD ---------- */
 .hud {
   display: flex;
@@ -215,6 +250,12 @@
 
 .tile--scanned-trap {
   background: #4a1e1e;
+}
+
+.tile--revealed {
+  opacity: 0.6;
+  outline: 1px dashed var(--dd-text-dim);
+  outline-offset: -2px;
 }
 
 .tile__player {

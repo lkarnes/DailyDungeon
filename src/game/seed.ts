@@ -25,11 +25,10 @@ export function getEpoch(dateKey: string): number {
   return Math.max(0, diffDays) + 1;
 }
 
-/** Builds the base RNG seed string for a given date key. Generation attempts append a suffix. */
-export function getDailySeed(dateKey: string, attempt = 0): string {
-  return attempt === 0
-    ? `${GAME_NAMESPACE}-${dateKey}`
-    : `${GAME_NAMESPACE}-${dateKey}-retry${attempt}`;
+/** Builds the base RNG seed string for a given date key and chosen difficulty. Generation attempts append a suffix. */
+export function getDailySeed(dateKey: string, difficultyName: string, attempt = 0): string {
+  const base = `${GAME_NAMESPACE}-${dateKey}-${difficultyName}`;
+  return attempt === 0 ? base : `${base}-retry${attempt}`;
 }
 
 /** Builds a non-deterministic seed for "practice" rounds that don't affect daily stats. */
@@ -52,61 +51,59 @@ export type DungeonDifficulty = {
 };
 
 /**
- * Weekly difficulty rhythm, like many daily-puzzle games: the week builds up
- * to a tougher, larger "Dungeon Sunday" and eases off early in the week.
+ * Named difficulty presets, shared by the daily weekly rhythm and Practice
+ * Mode's difficulty picker. Order matters for the Practice Mode UI (easiest first).
  */
-export function getDifficultyForDate(date: Date): DungeonDifficulty {
-  const day = date.getDay(); // 0 = Sunday ... 6 = Saturday
-  switch (day) {
-    case 0: // Sunday - the big one
-      return {
-        rows: 13,
-        cols: 13,
-        trapRate: 0.17,
-        allowKeyDoor: true,
-        keyDoorChance: 1,
-        collectibleCount: 3,
-        gateCountRange: [3, 4],
-        permanentBlockRate: 0.05,
-        label: 'Treacherous',
-      };
-    case 5: // Friday
-    case 6: // Saturday
-      return {
-        rows: 11,
-        cols: 11,
-        trapRate: 0.15,
-        allowKeyDoor: true,
-        keyDoorChance: 0.7,
-        collectibleCount: 2,
-        gateCountRange: [2, 3],
-        permanentBlockRate: 0.04,
-        label: 'Hard',
-      };
-    case 3: // Wednesday
-    case 4: // Thursday
-      return {
-        rows: 10,
-        cols: 10,
-        trapRate: 0.13,
-        allowKeyDoor: true,
-        keyDoorChance: 0.35,
-        collectibleCount: 1,
-        gateCountRange: [2, 3],
-        permanentBlockRate: 0.03,
-        label: 'Medium',
-      };
-    default: // Monday, Tuesday
-      return {
-        rows: 9,
-        cols: 9,
-        trapRate: 0.11,
-        allowKeyDoor: false,
-        keyDoorChance: 0,
-        collectibleCount: 1,
-        gateCountRange: [1, 2],
-        permanentBlockRate: 0.02,
-        label: 'Easy',
-      };
-  }
-}
+export const DIFFICULTY_PRESETS = {
+  Easy: {
+    rows: 9,
+    cols: 9,
+    trapRate: 0.11,
+    allowKeyDoor: false,
+    keyDoorChance: 0,
+    collectibleCount: 1,
+    gateCountRange: [1, 2],
+    permanentBlockRate: 0.02,
+    label: 'Easy',
+  },
+  Medium: {
+    rows: 10,
+    cols: 10,
+    trapRate: 0.13,
+    allowKeyDoor: true,
+    keyDoorChance: 0.35,
+    collectibleCount: 1,
+    gateCountRange: [2, 3],
+    permanentBlockRate: 0.03,
+    label: 'Medium',
+  },
+  Hard: {
+    rows: 11,
+    cols: 11,
+    trapRate: 0.15,
+    allowKeyDoor: true,
+    keyDoorChance: 0.7,
+    collectibleCount: 2,
+    gateCountRange: [2, 3],
+    permanentBlockRate: 0.04,
+    label: 'Hard',
+  },
+  Treacherous: {
+    rows: 13,
+    cols: 13,
+    trapRate: 0.17,
+    allowKeyDoor: true,
+    keyDoorChance: 1,
+    collectibleCount: 3,
+    gateCountRange: [2, 4],
+    permanentBlockRate: 0.05,
+    label: 'Treacherous',
+  },
+} satisfies Record<string, DungeonDifficulty>;
+
+export type DifficultyName = keyof typeof DIFFICULTY_PRESETS;
+
+export const DIFFICULTY_NAMES = Object.keys(DIFFICULTY_PRESETS) as DifficultyName[];
+
+/** The difficulty selected by default for a first-time player (before they've chosen one). */
+export const DEFAULT_DIFFICULTY: DifficultyName = 'Medium';

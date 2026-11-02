@@ -15,9 +15,11 @@ interface BoardProps {
   state: GameState;
   onTileClick: (pos: Position) => void;
   scanMode: boolean;
+  /** When true (after a run ends), shows every clue and switch location regardless of fog-of-war, so players can review where they went wrong. */
+  revealAll?: boolean;
 }
 
-export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
+export function Board({ map, state, onTileClick, scanMode, revealAll = false }: BoardProps) {
   const playerKey = posKey(state.playerPos);
   const startKey = posKey(map.start);
   const exitKey = posKey(map.exit);
@@ -59,8 +61,9 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
           // Fog of war: clue markers are hidden on unvisited tiles (so you can't see
           // every clue location and trace a path without exploring), but once you've
           // visited a tile its marker stays visible permanently, so you can always
-          // find your way back to where a Clue Log entry came from.
-          const showClueHere = isVisited && cluesHere.length > 0;
+          // find your way back to where a Clue Log entry came from. `revealAll`
+          // (set once a run ends) lifts the fog entirely for post-game review.
+          const showClueHere = (isVisited || revealAll) && cluesHere.length > 0;
           const hasKeyItem = keyKey === k && !state.hasKey;
           const isDoorTile = doorKey === k;
           const gateIdxForBlocked = blockedTileGate.get(k);
@@ -68,6 +71,7 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
           const isClearedGateTile = gateIdxForBlocked !== undefined && state.activatedGates.has(gateIdxForBlocked) && isVisited;
           const gateIdxForSwitch = switchTileGate.get(k);
           const isActivatedSwitch = gateIdxForSwitch !== undefined && state.activatedGates.has(gateIdxForSwitch);
+          const isUnpulledSwitchRevealed = gateIdxForSwitch !== undefined && !isActivatedSwitch && revealAll;
           const hasCollectible = collectibleKeys.has(k) && !state.collectedCollectibles.has(k);
 
           const classes = [
@@ -81,6 +85,8 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
             scannedSafe ? 'tile--scanned-safe' : '',
             scannedTrap ? 'tile--scanned-trap' : '',
             isBlockedTile ? 'tile--blocked' : '',
+            isUnpulledSwitchRevealed ? 'tile--revealed' : '',
+            revealAll && showClueHere && !isVisited ? 'tile--revealed' : '',
           ]
             .filter(Boolean)
             .join(' ');
@@ -115,6 +121,9 @@ export function Board({ map, state, onTileClick, scanMode }: BoardProps) {
             } else if (isActivatedSwitch) {
               icon = '🕹️';
               title = 'Lever (pulled)';
+            } else if (isUnpulledSwitchRevealed) {
+              icon = '🕹️';
+              title = 'Lever (never pulled)';
             } else if (isClearedGateTile) {
               icon = '✅';
               title = 'Cleared passage (lever pulled elsewhere)';

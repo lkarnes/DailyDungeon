@@ -92,7 +92,7 @@ export function GameSession({ map, isPractice, onFinish }: GameSessionProps) {
         }}
       />
       <div className="game-session__main">
-        <Board map={map} state={state} onTileClick={handleTileClick} scanMode={scanMode} />
+        <Board map={map} state={state} onTileClick={handleTileClick} scanMode={scanMode} revealAll={state.status !== 'playing'} />
         <aside className="game-session__sidebar">
           <ClueLog state={state} />
           <Controls onMove={move} disabled={state.status !== 'playing'} />
@@ -103,6 +103,12 @@ export function GameSession({ map, isPractice, onFinish }: GameSessionProps) {
           {flagMode && 'Flag mode: tap a tile to mark it as a suspected trap.'}
           {scanMode && 'Scan mode: tap an unvisited tile to reveal whether it is safe.'}
           {!flagMode && !scanMode && `Tile ${posKey(state.playerPos)} - use arrow keys, WASD, or tap an adjacent tile to move.`}
+        </p>
+      )}
+      {state.status !== 'playing' && (
+        <p className="game-session__hint-text" aria-live="polite">
+          Run complete - every clue and lever location is now revealed below so you can see where things went right (or
+          wrong).
         </p>
       )}
     </div>

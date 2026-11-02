@@ -8,8 +8,15 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
       <section>
         <h3>The goal</h3>
         <p>
-          Escape the dungeon by reaching the exit 🚪 without stepping on a hidden trap 💀. Everyone gets the exact same
-          dungeon each day, generated from today&rsquo;s date - so you can compare scores fairly with friends.
+          Escape the dungeon by reaching the exit 🚪 without stepping on a hidden trap 💀. Everyone who picks the same
+          difficulty on the same day gets the exact same dungeon - so you can compare scores fairly with friends.
+        </p>
+      </section>
+      <section>
+        <h3>Choose your difficulty</h3>
+        <p>
+          Pick Easy, Medium, Hard, or Treacherous any day - it&rsquo;s never forced by the calendar. Your attempt is
+          tracked separately for each difficulty, so you can play more than one tier the same day if you like.
         </p>
       </section>
       <section>
@@ -73,10 +80,10 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
         </p>
       </section>
       <section>
-        <h3>Some days are harder</h3>
+        <h3>Harder tiers</h3>
         <p>
-          Dungeons grow larger and trickier later in the week, with more traps, more hidden levers, and more permanently
-          blocked passages to route around. Sundays are the toughest challenge of the week.
+          Higher difficulties use larger grids with more traps, more hidden levers, and more permanently blocked
+          passages to route around - Treacherous is the toughest tier available.
         </p>
       </section>
     </Modal>

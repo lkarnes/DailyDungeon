@@ -21,14 +21,17 @@ and previewed with `npm run preview`.
 
 ## Gameplay loop
 
-1. **Start the daily challenge** - the dungeon for today is generated once (deterministically) from
-   today's date and cached for the session.
+1. **Choose your difficulty** - Easy, Medium, Hard, or Treacherous. Nothing is forced by the day of
+   the week; you pick the tier you want to play, and you can play more than one tier on the same
+   day (each is tracked and scored independently). Your dungeon is still generated deterministically
+   from today's date + chosen difficulty, so everyone who picks the same tier on the same day gets
+   the identical dungeon.
 2. **Explore** - move with the arrow keys, `WASD`, the on-screen arrow buttons, or by clicking an
    adjacent tile. Moving costs one "move"; nothing else does.
 3. **Uncover clues** - walking onto a clue tile automatically reveals it and adds it to your Clue
-   Log (free to re-read at any time). Clues are fogged: you can only ever see the clue on the tile
-   you're *currently* standing on - the board never shows you where other clues are, so you have to
-   actually explore rather than just walking toward visible markers.
+   Log (free to re-read at any time). Clues are fogged for *unvisited* tiles only - once you've
+   stood on a tile, its marker stays visible permanently, so you can always see on the map where
+   each Clue Log entry came from, without being able to see clues you haven't reached yet.
 4. **Deduce safe tiles** - combine clues to work out which tiles must be safe and which must hide a
    trap, the same way you would reason through a Minesweeper board.
 5. **Clear obstacles** - locked doors need a key, rubble-blocked passages need a hidden lever (a
@@ -36,17 +39,21 @@ and previewed with `npm run preview`.
    need to find another route entirely.
 6. **Reach the exit** - in as few moves as possible, without ever stepping on a trap.
 7. **See your score** - moves used vs. the mathematically optimal route, time taken, clues
-   discovered, hints used, and a final score, plus your streak and lifetime stats.
+   discovered, hints used, and a final score, plus your streak and lifetime stats. The results
+   screen reveals every clue, lever, and trap location on the full board so you can see exactly
+   where things went right (or wrong) - whether you just finished a run or come back later the
+   same day to review it.
 
 Free, no-move-cost tools:
 - 🚩 **Mark Trap** - flag a tile you suspect is dangerous, purely for your own bookkeeping.
 - 🔦 **Scan** - (costs points and forfeits the "no hints" bonus) reveals whether one specific tile is
   a trap, limited to 3 uses per run.
 
-Triggering a trap ends that day's run. Daily Dungeon is a one-attempt-per-day game (like Wordle) -
-your result is saved locally and shown again if you reload the page. **Practice Mode** generates an
-extra, non-deterministic dungeon you can retry as often as you like without touching your daily
-stats or streak.
+Triggering a trap ends that run for that difficulty+day combo (one official attempt per
+day-and-difficulty, like Wordle); your result is saved locally and shown again if you reload the
+page. You can still pick a different difficulty to play more today. **Practice Mode** generates an
+extra, non-deterministic dungeon at your currently-selected difficulty that you can retry as often
+as you like without touching your daily stats or streak.
 
 ## Clue types
 
@@ -138,23 +145,29 @@ human-usable information but are intentionally not relied upon by the automated 
 carry no trap constraint at all - they're guaranteed true statements about switch locations.
 
 Automated tests ([`src/game/generator.test.ts`](./src/game/generator.test.ts)) regenerate dungeons
-for 70 consecutive days and assert, for every single one: the dungeon is solvable, a trap-free path
-exists and matches the recorded optimal move count (accounting for key/door and every gate), every
-clue sits on a real floor tile (never the undiscoverable start tile), at least one clue is
-load-bearing, every gate is a genuine nested chokepoint with its switch reachable beforehand and a
-matching lever clue, and every permanent block is baked into the terrain without colliding with any
-reserved tile.
+across 30 dates &times; all 4 difficulties (120 combinations) and assert, for every single one: the
+dungeon is solvable, a trap-free path exists and matches the recorded optimal move count (accounting
+for key/door and every gate), every clue sits on a real floor tile (never the undiscoverable start
+tile), at least one clue is load-bearing, every gate is a genuine nested chokepoint with its switch
+reachable beforehand and a matching lever clue, and every permanent block is baked into the terrain
+without colliding with any reserved tile.
 
-## Difficulty rhythm
+## Difficulty
 
-Like many daily puzzle games, the week has a rhythm:
+Difficulty is a player choice, never forced by the day of the week - pick Easy, Medium, Hard, or
+Treacherous from the selector, any day, and switch any time (your daily attempt is tracked
+separately per difficulty, so you can play more than one tier the same day):
 
-| Day(s) | Grid | Trap density | Key/door | Gates | Permanent blocks |
+| Difficulty | Grid | Trap density | Key/door | Gates | Permanent blocks |
 | --- | --- | --- | --- | --- | --- |
-| Mon - Tue | 9x9 | ~11% | never | 0-1 | ~2% of floor |
-| Wed - Thu | 10x10 | ~13% | sometimes | 0-2 | ~3% of floor |
-| Fri - Sat | 11x11 | ~15% | usually | 1-2 | ~4% of floor |
-| Sunday | 13x13 | ~17% | always | 2-3 | ~5% of floor |
+| Easy | 9x9 | ~11% | never | 1-2 | ~2% of floor |
+| Medium | 10x10 | ~13% | sometimes | 2-3 | ~3% of floor |
+| Hard | 11x11 | ~15% | usually | 2-3 | ~4% of floor |
+| Treacherous | 13x13 | ~17% | always | 2-4 | ~5% of floor |
+
+Each date+difficulty combination is generated from its own independent seed, so "Hard" on a given
+day is the same dungeon for everyone who picks Hard that day, regardless of who's also playing Easy
+or Treacherous.
 
 ## Project structure
 

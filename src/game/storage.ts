@@ -1,11 +1,13 @@
-/** Local persistence: per-day results, streaks, and lifetime stats. No backend required for v1. */
+/** Local persistence: per-day-and-difficulty results, streaks, and lifetime stats. No backend required for v1. */
 import type { RunSummary } from './scoring';
+import type { DifficultyName } from './seed';
 
-const RESULTS_KEY = 'dd_results_v2';
+const RESULTS_KEY = 'dd_results_v3';
 const STATS_KEY = 'dd_stats_v1';
 
 export interface StoredResult extends RunSummary {
   dateKey: string;
+  difficulty: DifficultyName;
   epoch: number;
   completedAt: string;
 }
@@ -37,14 +39,19 @@ function hasStorage(): boolean {
   }
 }
 
+function resultKey(dateKey: string, difficulty: DifficultyName): string {
+  return `${dateKey}:${difficulty}`;
+}
+
 export function getAllResults(): Record<string, StoredResult> {
   if (!hasStorage()) return {};
   return safeParse(window.localStorage.getItem(RESULTS_KEY), {} as Record<string, StoredResult>);
 }
 
-export function getResultForDate(dateKey: string): StoredResult | null {
+/** Looks up a stored result for a specific day and difficulty. Players may have a separate result per difficulty, per day. */
+export function getResult(dateKey: string, difficulty: DifficultyName): StoredResult | null {
   const all = getAllResults();
-  return all[dateKey] ?? null;
+  return all[resultKey(dateKey, difficulty)] ?? null;
 }
 
 export function getStats(): LifetimeStats {
@@ -71,20 +78,32 @@ function dayBefore(dateKey: string): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Saves today's result and updates streak/lifetime stats. Idempotent: calling twice for the same day keeps the first result. */
-export function saveResult(dateKey: string, epoch: number, summary: RunSummary): LifetimeStats {
+/**
+ * Saves a result for a specific day+difficulty and updates lifetime stats.
+ * Idempotent per (day, difficulty): calling twice keeps the first result for
+ * that combo, but since players can play multiple difficulties the same day,
+ * only the *first* result recorded each calendar day affects the streak -
+ * later same-day attempts (other difficulties) still count toward games
+ * played / best score / total score, just not the streak itself.
+ */
+export function saveResult(dateKey: string, difficulty: DifficultyName, epoch: number, summary: RunSummary): LifetimeStats {
   const stats = getStats();
   if (!hasStorage()) return stats;
 
   const all = getAllResults();
-  if (all[dateKey]) return stats; // one official attempt per day
+  const key = resultKey(dateKey, difficulty);
+  if (all[key]) return stats; // one official attempt per (day, difficulty)
 
-  all[dateKey] = { ...summary, dateKey, epoch, completedAt: new Date().toISOString() };
+  all[key] = { ...summary, dateKey, difficulty, epoch, completedAt: new Date().toISOString() };
   window.localStorage.setItem(RESULTS_KEY, JSON.stringify(all));
 
   const won = summary.completed && !summary.trapTriggered;
-  const continuesStreak = stats.lastPlayedDateKey === dayBefore(dateKey);
-  const nextStreak = won ? (continuesStreak ? stats.currentStreak + 1 : 1) : 0;
+  const alreadyCountedToday = stats.lastPlayedDateKey === dateKey;
+  let nextStreak = stats.currentStreak;
+  if (!alreadyCountedToday) {
+    const continuesStreak = stats.lastPlayedDateKey === dayBefore(dateKey);
+    nextStreak = won ? (continuesStreak ? stats.currentStreak + 1 : 1) : 0;
+  }
 
   const next: LifetimeStats = {
     gamesPlayed: stats.gamesPlayed + 1,
