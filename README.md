@@ -19,6 +19,11 @@ npm run dev
 Then open the printed `http://localhost:5173` URL. A production build is created with `npm run build`
 and previewed with `npm run preview`.
 
+### Deploying
+
+It's a static site (no backend; results live in localStorage). Build command `npm run build`,
+output directory `dist`. Connect the GitHub repo to Vercel, Netlify, or Cloudflare Pages and use those settings.
+
 ## Gameplay loop
 
 1. **Choose your difficulty** - Easy, Medium, Hard, or Treacherous. Nothing is forced by the day of
@@ -78,7 +83,7 @@ needed, so hint density stays reasonable without ever sacrificing solvability.
 | Obstacle | Cleared by | Notes |
 | --- | --- | --- |
 | 🔒 Locked door | Finding its key 🔑 anywhere in the dungeon | Opens permanently once you're carrying the key |
-| 🪨 Rubble-blocked passage | Finding and pulling its hidden lever 🕹️ | A lever clue is always guaranteed to point to it |
+| 🧱 Brick wall | Finding and pulling its hidden lever 🕹️ | A lever clue is always guaranteed to point to it |
 | ⛔ Impassable rubble | Never | A permanent dead end - route around it |
 
 Keys/doors and switch/lever gates are independent mechanics and can both appear on the same day.

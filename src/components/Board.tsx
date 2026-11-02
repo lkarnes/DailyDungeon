@@ -107,8 +107,8 @@ export function Board({ map, state, onTileClick, scanMode, revealAll = false }: 
               icon = '🔒';
               title = 'Locked door';
             } else if (isBlockedTile) {
-              icon = '🪨';
-              title = 'Blocked by rubble';
+              icon = '🧱';
+              title = 'Brick wall (opens with a lever)';
             } else if (hasKeyItem) {
               icon = '🔑';
               title = 'Key';

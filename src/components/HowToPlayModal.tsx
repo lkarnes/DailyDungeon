@@ -49,7 +49,7 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
         <ul>
           <li>🔒 <strong>Locked door</strong> - opens permanently once you&rsquo;ve found its key 🔑 elsewhere in the dungeon.</li>
           <li>
-            🪨 <strong>Rubble-blocked passage</strong> - cleared permanently once you find its hidden lever 🕹️ (a lever clue
+            🧱 <strong>Brick wall</strong> - cleared permanently once you find its hidden lever 🕹️ (a lever clue
             always points the way).
           </li>
           <li>⛔ <strong>Impassable rubble</strong> - a permanent dead end. No key, lever, or trick ever opens these.</li>

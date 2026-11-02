@@ -47,6 +47,7 @@ export default function App() {
   const [practiceMap, setPracticeMap] = useState<DungeonMap | null>(null);
   const [practiceSummary, setPracticeSummary] = useState<RunSummary | null>(null);
   const [practiceRunId, setPracticeRunId] = useState(0);
+  const [practiceDismissed, setPracticeDismissed] = useState(false);
 
   const completedToday = useMemo(() => {
     // `existingResult` isn't read directly here, but it's the dependency that
@@ -80,6 +81,7 @@ export default function App() {
     if (practiceMap !== null) {
       setPracticeRunId((id) => id + 1);
       setPracticeSummary(null);
+      setPracticeDismissed(false);
       setPracticeMap(getPracticeMap(name, now));
     }
   }
@@ -94,12 +96,14 @@ export default function App() {
   function startPractice() {
     setPracticeRunId((id) => id + 1);
     setPracticeSummary(null);
+    setPracticeDismissed(false);
     setPracticeMap(getPracticeMap(difficulty, now));
   }
 
   function exitPractice() {
     setPracticeMap(null);
     setPracticeSummary(null);
+    setPracticeDismissed(false);
   }
 
   const inPracticeMode = practiceMap !== null;
@@ -123,6 +127,16 @@ export default function App() {
               <button type="button" className="app-header__btn" onClick={exitPractice}>
                 ⬅ Back to Daily Dungeon
               </button>
+              {practiceSummary && (
+                <>
+                  <button type="button" className="app-header__btn" onClick={() => setPracticeDismissed(false)}>
+                    📜 Results
+                  </button>
+                  <button type="button" className="app-header__btn" onClick={startPractice}>
+                    🔁 New practice run
+                  </button>
+                </>
+              )}
             </div>
             <GameSession key={practiceRunId} map={practiceMap} isPractice onFinish={setPracticeSummary} />
           </>
@@ -148,14 +162,14 @@ export default function App() {
         />
       )}
 
-      {inPracticeMode && practiceSummary && (
+      {inPracticeMode && practiceSummary && !practiceDismissed && (
         <ResultsModal
           summary={practiceSummary}
           epoch={dailyMap.epoch}
           difficultyLabel={dailyMap.difficultyLabel}
           stats={stats}
           onPractice={startPractice}
-          onClose={exitPractice}
+          onClose={() => setPracticeDismissed(true)}
         />
       )}
     </div>
